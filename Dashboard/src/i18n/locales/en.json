@@ -1,0 +1,29 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "restaurant": "Restaurant",
+    "branches": "Branches",
+    "categories": "Categories",
+    "subcategories": "Subcategories",
+    "products": "Products",
+    "prices": "Prices",
+    "allergens": "Allergens",
+    "promotions": "Promotions",
+    "tables": "Tables",
+    "staff": "Staff",
+    "kitchen": "Kitchen",
+    "statistics": "Statistics",
+    "settings": "Settings"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "search": "Search",
+    "loading": "Loading...",
+    "noResults": "No results",
+    "confirm": "Confirm"
+  }
+}

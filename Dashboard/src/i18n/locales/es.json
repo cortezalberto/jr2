@@ -1,0 +1,29 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "restaurant": "Restaurante",
+    "branches": "Sucursales",
+    "categories": "Categorías",
+    "subcategories": "Subcategorías",
+    "products": "Productos",
+    "prices": "Precios",
+    "allergens": "Alérgenos",
+    "promotions": "Promociones",
+    "tables": "Mesas",
+    "staff": "Personal",
+    "kitchen": "Cocina",
+    "statistics": "Estadísticas",
+    "settings": "Configuración"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "create": "Crear",
+    "search": "Buscar",
+    "loading": "Cargando...",
+    "noResults": "Sin resultados",
+    "confirm": "Confirmar"
+  }
+}
