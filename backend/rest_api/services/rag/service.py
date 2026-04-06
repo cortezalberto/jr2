@@ -18,7 +18,10 @@ from rest_api.services.catalog.product_view import (
     generate_product_text_for_rag,
     generate_recipe_text_for_rag,
 )
+from shared.config.logging import get_logger
 from shared.config.settings import OLLAMA_URL, EMBED_MODEL, CHAT_MODEL
+
+logger = get_logger(__name__)
 
 
 # =============================================================================
@@ -134,7 +137,8 @@ class OllamaClient:
             client = await self._get_client()
             response = await client.get(f"{self.base_url}/api/tags")
             return response.status_code == 200
-        except Exception:
+        except Exception as e:
+            logger.error("Ollama availability check failed", error=str(e))
             return False
 
 
@@ -369,6 +373,7 @@ Contexto del menu:
                 count += 1
             except Exception as e:
                 error_msg = f"Failed to ingest recipe {recipe.id} ({recipe.name}): {str(e)}"
+                logger.error("RAG recipe ingestion failed", recipe_id=recipe.id, recipe_name=recipe.name, error=str(e))
                 errors.append(error_msg)
                 # Ensure session is clean for next iteration
                 self.db.rollback()
@@ -593,6 +598,7 @@ Contexto del menu:
             except Exception as e:
                 # SVC-HIGH-01 FIX: Log error and continue with next product
                 error_msg = f"Failed to ingest product {product.id} ({product.name}): {str(e)}"
+                logger.error("RAG product ingestion failed", product_id=product.id, product_name=product.name, error=str(e))
                 errors.append(error_msg)
                 # Ensure session is clean for next iteration
                 self.db.rollback()

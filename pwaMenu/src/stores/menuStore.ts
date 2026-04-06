@@ -47,6 +47,8 @@ interface MenuState {
   getCategoryById: (id: number) => CategoryFrontend | undefined
   /** Gets all available products for a category */
   getProductsByCategory: (categoryId: number) => ProductFrontend[]
+  /** Updates a product's availability status (for real-time WS updates) */
+  updateProductAvailability: (productId: number, isAvailable: boolean) => void
   /** Clears all menu data and cache */
   clearMenu: () => void
   /** Invalidates cache, forcing next fetchMenu to reload from backend */
@@ -284,7 +286,20 @@ export const useMenuStore = create<MenuState>()((set, get) => ({
   },
 
   getProductsByCategory: (categoryId: number) => {
-    return get().products.filter((p) => p.categoryId === categoryId && p.isAvailable)
+    // Include unavailable products (shown as grayed out with "Agotado" badge)
+    return get().products.filter((p) => p.categoryId === categoryId)
+  },
+
+  updateProductAvailability: (productId: number, isAvailable: boolean) => {
+    const products = get().products
+    const idx = products.findIndex((p) => p.id === productId)
+    if (idx === -1) return
+
+    // Create new array with updated product to trigger React re-render
+    const updatedProducts = [...products]
+    updatedProducts[idx] = { ...updatedProducts[idx], isAvailable }
+    set({ products: updatedProducts })
+    menuStoreLogger.info(`Product ${productId} availability: ${isAvailable}`)
   },
 
   clearMenu: () => {

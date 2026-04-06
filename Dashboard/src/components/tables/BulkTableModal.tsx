@@ -37,8 +37,11 @@ export function BulkTableModal({
   branchName,
   onSuccess,
 }: BulkTableModalProps) {
-  const { sectors, fetchSectors, isLoading: sectorsLoading } = useSectorStore()
-  const { createTablesBatch, isLoading: tablesLoading } = useTableStore()
+  const sectors = useSectorStore((s) => s.sectors)
+  const fetchSectors = useSectorStore((s) => s.fetchSectors)
+  const sectorsLoading = useSectorStore((s) => s.isLoading)
+  const createTablesBatch = useTableStore((s) => s.createTablesBatch)
+  const tablesLoading = useTableStore((s) => s.isLoading)
 
   const [rows, setRows] = useState<TableRow[]>([])
   const [showAddSector, setShowAddSector] = useState(false)

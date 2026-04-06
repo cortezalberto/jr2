@@ -424,6 +424,23 @@ input[type="color"]::-webkit-color-swatch {
   animation: status-blink 1.5s ease-in-out;
 }
 
+/* KDS Kitchen: Pulse flash for items waiting > 20 minutes */
+@keyframes kds-pulse-urgent {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+    border-color: rgb(239, 68, 68);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(239, 68, 68, 0.7), 0 0 40px rgba(239, 68, 68, 0.3);
+    border-color: rgb(252, 165, 165);
+    background-color: rgba(239, 68, 68, 0.08);
+  }
+}
+
+.kds-pulse-urgent {
+  animation: kds-pulse-urgent 1.2s infinite ease-in-out;
+}
+
 /* Ready + Kitchen blink - 5 second attention-grabbing animation for mixed order states */
 @keyframes ready-kitchen-blink {
   0%, 100% {

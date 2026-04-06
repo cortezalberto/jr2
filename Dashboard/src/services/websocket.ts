@@ -1,12 +1,12 @@
 /**
  * WebSocket service for Dashboard real-time updates
+ * Extends BaseWebSocketClient from shared module.
+ *
  * Connects to ws://localhost:8001/ws/admin for admin/manager role
  * or ws://localhost:8001/ws/kitchen for kitchen role
- *
- * A006 FIX: Added throttling support to prevent excessive re-renders
- * MED-04 FIX: Uses centralized logger instead of console.*
  */
 
+import { BaseWebSocketClient, type WSEvent as BaseWSEvent, type EventCallback as BaseEventCallback } from '@shared/websocket-client'
 import { getAuthToken } from './api'
 import { logger } from '../utils/logger'
 
@@ -60,6 +60,7 @@ export type WSEventType =
   | 'ROUND_SERVED'
   | 'ROUND_CANCELED'
   | 'ROUND_ITEM_DELETED'  // Item removed from round by waiter
+  | 'ROUND_ITEM_VOIDED'  // Item voided from submitted round
   // Service call events
   | 'SERVICE_CALL_CREATED'
   | 'SERVICE_CALL_ACKED'
@@ -140,201 +141,83 @@ type ConnectionStateCallback = (isConnected: boolean) => void
 
 const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8001'
 
-// Exponential backoff configuration
-const BASE_RECONNECT_DELAY = 1000
-const MAX_RECONNECT_DELAY = 30000
-const JITTER_FACTOR = 0.3
-const MAX_RECONNECT_ATTEMPTS = 50  // Increased from 10 for more persistent reconnection
-
-// Heartbeat configuration
-const HEARTBEAT_INTERVAL = 30000
-const HEARTBEAT_TIMEOUT = 10000
-
-// QA-AUDIT-01: Close codes that should NOT trigger reconnection (permanent errors)
-// SEC-MED-02 FIX: Added 4029 (RATE_LIMITED) to prevent infinite retry spam
-const NON_RECOVERABLE_CLOSE_CODES = new Set([
-  4001, // AUTH_FAILED - JWT invalid/expired, needs re-login
-  4003, // FORBIDDEN - Insufficient role or invalid origin
-  4029, // RATE_LIMITED - Too many messages, client is spamming
-])
-
-// QA-AUDIT-02: Callback for max reconnect reached (allows UI notification)
-type MaxReconnectCallback = () => void
-
-class DashboardWebSocket {
-  private ws: WebSocket | null = null
-  private listeners: Map<WSEventType | '*', Set<EventCallback>> = new Map()
-  private connectionStateListeners: Set<ConnectionStateCallback> = new Set()
-  private reconnectAttempts = 0
-  private reconnectTimeout: ReturnType<typeof setTimeout> | null = null
-  private heartbeatInterval: ReturnType<typeof setInterval> | null = null
-  private heartbeatTimeout: ReturnType<typeof setTimeout> | null = null
-  private isIntentionallyClosed = false
+class DashboardWebSocket extends BaseWebSocketClient {
   private endpoint: 'admin' | 'kitchen' = 'admin'
-  // QA-AUDIT-03: Track last close code for smart reconnection
   private lastCloseCode: number | null = null
-  // QA-AUDIT-02: Callback when max reconnect attempts reached
-  private onMaxReconnectReached: MaxReconnectCallback | null = null
+  private branchId: number | null = null
+
+  constructor() {
+    // Dashboard doesn't use visibility handler
+    super({ handleVisibility: false })
+  }
+
+  // ---------------------------------------------------------------------------
+  // BaseWebSocketClient abstract implementations
+  // ---------------------------------------------------------------------------
+
+  protected getUrl(): string {
+    return `${WS_BASE}/ws/${this.endpoint}`
+  }
+
+  protected getAuthParam(): string | null {
+    const token = getAuthToken()
+    if (!token) {
+      logger.warn(WS_CONTEXT, 'No auth token available, cannot connect')
+      return null
+    }
+    return `token=${encodeURIComponent(token)}`
+  }
+
+  // ---------------------------------------------------------------------------
+  // BaseWebSocketClient hook overrides
+  // ---------------------------------------------------------------------------
+
+  protected override onOpen(wasReconnect: boolean): void {
+    logger.info(WS_CONTEXT, `Connected to ${this.endpoint} WebSocket`)
+
+    // CATCHUP: After reconnect, fetch missed events
+    if (wasReconnect && this.lastEventTimestamp > 0) {
+      this.catchUpEvents().catch((err) => {
+        logger.warn(WS_CONTEXT, 'Catch-up after reconnect failed', err)
+      })
+    }
+  }
+
+  protected override onClose(code: number, reason: string): void {
+    this.lastCloseCode = code
+    logger.info(WS_CONTEXT, `Connection closed: ${code} ${reason}`)
+  }
+
+  protected override onMessage(event: BaseWSEvent): void {
+    // Delegate to base notifyListeners — callbacks receive the event as-is
+    // (Dashboard WSEvent is a structural superset of BaseWSEvent)
+    this.notifyListeners(event)
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dashboard-specific public API
+  // ---------------------------------------------------------------------------
 
   /**
    * Connect to WebSocket server
    * @param endpoint - 'admin' for full access or 'kitchen' for kitchen-only events
    */
-  connect(endpoint: 'admin' | 'kitchen' = 'admin'): void {
-    const token = getAuthToken()
-    if (!token) {
-      logger.warn(WS_CONTEXT, 'No auth token available, cannot connect')
-      return
-    }
-
-    // QA-AUDIT-01: Clear pending reconnect timeout to prevent race condition
-    // This prevents duplicate connections if connect() is called while a reconnect is scheduled
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout)
-      this.reconnectTimeout = null
-    }
-
-    // Check if already connected or connecting to the same endpoint
-    if (this.ws && this.endpoint === endpoint) {
-      const state = this.ws.readyState
-      if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
-        logger.debug(WS_CONTEXT, 'Already connected or connecting')
-        return
-      }
-    }
-
+  override connect(endpoint: 'admin' | 'kitchen' = 'admin'): void {
     // Close existing connection if switching endpoints
     if (this.ws && this.endpoint !== endpoint) {
       this.disconnect()
     }
 
     this.endpoint = endpoint
-    this.isIntentionallyClosed = false
-
-    try {
-      const url = `${WS_BASE}/ws/${endpoint}?token=${encodeURIComponent(token)}`
-      this.ws = new WebSocket(url)
-
-      this.ws.onopen = () => {
-        logger.info(WS_CONTEXT, `Connected to ${endpoint} WebSocket`)
-        this.reconnectAttempts = 0
-        this.startHeartbeat()
-        this.notifyConnectionState(true)
-      }
-
-      this.ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-
-          // Handle heartbeat pong
-          if (data.type === 'pong') {
-            this.clearHeartbeatTimeout()
-            return
-          }
-
-          this.notifyListeners(data as WSEvent)
-        } catch (err) {
-          logger.error(WS_CONTEXT, 'Failed to parse message', err)
-        }
-      }
-
-      this.ws.onclose = (event) => {
-        // QA-AUDIT-03: Track close code for smart reconnection decisions
-        this.lastCloseCode = event.code
-        logger.info(WS_CONTEXT, `Connection closed: ${event.code} ${event.reason}`)
-        this.ws = null
-        this.stopHeartbeat()
-        this.notifyConnectionState(false)
-
-        if (!this.isIntentionallyClosed) {
-          // QA-AUDIT-01: Check if close code indicates permanent error (no retry)
-          if (NON_RECOVERABLE_CLOSE_CODES.has(event.code)) {
-            logger.warn(WS_CONTEXT, `Non-recoverable close code ${event.code}, not reconnecting. Please re-login.`)
-            // Notify UI about auth failure
-            this.onMaxReconnectReached?.()
-            return
-          }
-          this.scheduleReconnect()
-        }
-      }
-
-      this.ws.onerror = (error) => {
-        logger.error(WS_CONTEXT, 'WebSocket error', error)
-      }
-    } catch (err) {
-      logger.error(WS_CONTEXT, 'Failed to create WebSocket', err)
-      this.scheduleReconnect()
-    }
-  }
-
-  /**
-   * WS-31-HIGH-02 FIX: Soft disconnect - close socket but preserve listeners
-   * Use this when temporarily disconnecting (e.g., switching tabs, sleep)
-   * Listeners are preserved so reconnection works seamlessly
-   */
-  softDisconnect(): void {
-    this.isIntentionallyClosed = true
-
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout)
-      this.reconnectTimeout = null
-    }
-
-    this.stopHeartbeat()
-
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-
-    this.reconnectAttempts = 0
-    this.notifyConnectionState(false)
-    logger.info(WS_CONTEXT, 'Soft disconnected (listeners preserved)')
-  }
-
-  /**
-   * WS-31-HIGH-02 FIX: Hard disconnect - close socket AND clear all listeners
-   * Use this ONLY when logging out or destroying the service
-   * CRIT-10 FIX: Clears listeners to prevent memory leak on full disconnect
-   */
-  disconnect(): void {
-    this.softDisconnect()
-
-    // CRIT-10 FIX: Clear all listeners to prevent memory leak
-    this.listeners.clear()
-    this.connectionStateListeners.clear()
-
-    logger.info(WS_CONTEXT, 'Hard disconnected (listeners cleared)')
-  }
-
-  /**
-   * WS-31-HIGH-02 FIX: Full cleanup (alias for disconnect)
-   * Provided for API consistency with pwaMenu/pwaWaiter
-   */
-  destroy(): void {
-    this.disconnect()
-    logger.info(WS_CONTEXT, 'WebSocket service destroyed')
+    super.connect()
   }
 
   /**
    * Subscribe to specific event types
    * Use '*' to listen to all events
    */
-  on(eventType: WSEventType | '*', callback: EventCallback): () => void {
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set())
-    }
-    this.listeners.get(eventType)!.add(callback)
-
-    // Return unsubscribe function
-    return () => {
-      const listeners = this.listeners.get(eventType)
-      listeners?.delete(callback)
-      // QA-AUDIT-MED-01: Clean up empty Set to prevent memory leak
-      if (listeners?.size === 0) {
-        this.listeners.delete(eventType)
-      }
-    }
+  override on(eventType: WSEventType | '*', callback: EventCallback): () => void {
+    return super.on(eventType, callback as unknown as BaseEventCallback)
   }
 
   /**
@@ -352,19 +235,7 @@ class DashboardWebSocket {
       }
     }
 
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set())
-    }
-    this.listeners.get(eventType)!.add(filteredCallback)
-
-    return () => {
-      const listeners = this.listeners.get(eventType)
-      listeners?.delete(filteredCallback)
-      // QA-AUDIT-MED-01: Clean up empty Set
-      if (listeners?.size === 0) {
-        this.listeners.delete(eventType)
-      }
-    }
+    return super.on(eventType, filteredCallback as unknown as BaseEventCallback)
   }
 
   /**
@@ -383,19 +254,7 @@ class DashboardWebSocket {
       }
     }
 
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set())
-    }
-    this.listeners.get(eventType)!.add(filteredCallback)
-
-    return () => {
-      const listeners = this.listeners.get(eventType)
-      listeners?.delete(filteredCallback)
-      // QA-AUDIT-MED-01: Clean up empty Set
-      if (listeners?.size === 0) {
-        this.listeners.delete(eventType)
-      }
-    }
+    return super.on(eventType, filteredCallback as unknown as BaseEventCallback)
   }
 
   /**
@@ -410,21 +269,12 @@ class DashboardWebSocket {
     callback: EventCallback,
     delay: number = DEFAULT_THROTTLE_DELAY
   ): () => void {
-    const throttledCallback = throttle(callback as (...args: unknown[]) => void, delay) as EventCallback
+    const throttledCallback = throttle(
+      callback as unknown as (...args: unknown[]) => void,
+      delay
+    ) as unknown as BaseEventCallback
 
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set())
-    }
-    this.listeners.get(eventType)!.add(throttledCallback)
-
-    return () => {
-      const listeners = this.listeners.get(eventType)
-      listeners?.delete(throttledCallback)
-      // QA-AUDIT-MED-01: Clean up empty Set
-      if (listeners?.size === 0) {
-        this.listeners.delete(eventType)
-      }
-    }
+    return super.on(eventType, throttledCallback)
   }
 
   /**
@@ -436,56 +286,27 @@ class DashboardWebSocket {
     callback: EventCallback,
     delay: number = DEFAULT_THROTTLE_DELAY
   ): () => void {
-    const throttledCallback = throttle(callback as (...args: unknown[]) => void, delay) as EventCallback
+    const throttledCallback = throttle(
+      callback as unknown as (...args: unknown[]) => void,
+      delay
+    ) as unknown as EventCallback
+
     const filteredCallback: EventCallback = (event) => {
       if (event.branch_id === branchId) {
         throttledCallback(event)
       }
     }
 
-    if (!this.listeners.has(eventType)) {
-      this.listeners.set(eventType, new Set())
-    }
-    this.listeners.get(eventType)!.add(filteredCallback)
-
-    return () => {
-      const listeners = this.listeners.get(eventType)
-      listeners?.delete(filteredCallback)
-      // QA-AUDIT-MED-01: Clean up empty Set
-      if (listeners?.size === 0) {
-        this.listeners.delete(eventType)
-      }
-    }
+    return super.on(eventType, filteredCallback as unknown as BaseEventCallback)
   }
 
   /**
    * Subscribe to connection state changes
+   * Calls callback immediately with current state (Dashboard-specific behavior)
    */
-  onConnectionChange(callback: ConnectionStateCallback): () => void {
-    this.connectionStateListeners.add(callback)
+  override onConnectionChange(callback: ConnectionStateCallback): () => void {
     callback(this.isConnected())
-
-    return () => {
-      this.connectionStateListeners.delete(callback)
-    }
-  }
-
-  /**
-   * Check if connected
-   */
-  isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
-  }
-
-  /**
-   * QA-AUDIT-02: Register callback for when max reconnect attempts reached
-   * Allows UI to show "Connection lost" notification
-   */
-  onMaxReconnect(callback: MaxReconnectCallback): () => void {
-    this.onMaxReconnectReached = callback
-    return () => {
-      this.onMaxReconnectReached = null
-    }
+    return super.onConnectionChange(callback)
   }
 
   /**
@@ -514,94 +335,61 @@ class DashboardWebSocket {
     }, 100)
   }
 
-  private notifyListeners(event: WSEvent): void {
-    // Notify specific listeners
-    const specificListeners = this.listeners.get(event.type)
-    if (specificListeners) {
-      specificListeners.forEach((cb) => cb(event))
-    }
+  // =============================================================================
+  // CATCHUP: Event catch-up after reconnection
+  // =============================================================================
 
-    // Notify wildcard listeners
-    const wildcardListeners = this.listeners.get('*')
-    if (wildcardListeners) {
-      wildcardListeners.forEach((cb) => cb(event))
-    }
+  /**
+   * Set the branch ID for catch-up requests.
+   * Should be called when user selects/changes branch.
+   */
+  setBranchId(id: number): void {
+    this.branchId = id
   }
 
-  private notifyConnectionState(isConnected: boolean): void {
-    this.connectionStateListeners.forEach((cb) => cb(isConnected))
-  }
+  /**
+   * Fetch missed events from the catch-up REST endpoint.
+   * Called automatically after successful reconnection.
+   */
+  private async catchUpEvents(): Promise<void> {
+    if (!this.branchId || this.lastEventTimestamp === 0) return
 
-  private scheduleReconnect(): void {
-    // QA-AUDIT-01: Clear any pending reconnect timeout to prevent race condition
-    if (this.reconnectTimeout) {
-      clearTimeout(this.reconnectTimeout)
-      this.reconnectTimeout = null
-    }
-
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      logger.error(WS_CONTEXT, 'Max reconnect attempts reached')
-      // QA-AUDIT-02: Notify UI about connection failure
-      this.onMaxReconnectReached?.()
-      return
-    }
-
-    this.reconnectAttempts++
-
-    // Exponential backoff with jitter
-    const exponentialDelay = Math.min(
-      BASE_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1),
-      MAX_RECONNECT_DELAY
-    )
-    const jitter = exponentialDelay * JITTER_FACTOR * Math.random()
-    const delay = Math.round(exponentialDelay + jitter)
-
-    logger.info(WS_CONTEXT, `Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
-
-    this.reconnectTimeout = setTimeout(() => {
-      this.reconnectTimeout = null  // QA-AUDIT-01: Clear after firing
-      this.connect(this.endpoint)
-    }, delay)
-  }
-
-  private startHeartbeat(): void {
-    this.stopHeartbeat()
-
-    this.heartbeatInterval = setInterval(() => {
-      if (this.ws?.readyState === WebSocket.OPEN) {
-        this.sendPing()
-      }
-    }, HEARTBEAT_INTERVAL)
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval)
-      this.heartbeatInterval = null
-    }
-    this.clearHeartbeatTimeout()
-  }
-
-  private sendPing(): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
+    const token = getAuthToken()
+    if (!token) return
 
     try {
-      this.ws.send(JSON.stringify({ type: 'ping' }))
+      // Convert ws:// or wss:// to http:// or https://
+      const httpBaseUrl = WS_BASE.replace('ws://', 'http://').replace('wss://', 'https://')
+      const url = `${httpBaseUrl}/ws/catchup?branch_id=${this.branchId}&since=${this.lastEventTimestamp}&token=${encodeURIComponent(token)}`
 
-      this.heartbeatTimeout = setTimeout(() => {
-        logger.warn(WS_CONTEXT, 'Heartbeat timeout - no pong received')
-        this.ws?.close(4000, 'Heartbeat timeout')
-      }, HEARTBEAT_TIMEOUT)
-    } catch (err) {
-      logger.error(WS_CONTEXT, 'Failed to send ping', err)
+      const response = await fetch(url)
+      if (!response.ok) {
+        logger.warn(WS_CONTEXT, `Catch-up request failed with status ${response.status}`)
+        return
+      }
+
+      const data = await response.json()
+      const events = data.events as WSEvent[]
+
+      if (events.length > 0) {
+        logger.info(WS_CONTEXT, `Catching up ${events.length} missed events`)
+        for (const event of events) {
+          this.notifyListeners(event as BaseWSEvent)
+        }
+        // Update timestamp to latest caught-up event
+        this.lastEventTimestamp = Date.now() / 1000
+      }
+    } catch (error) {
+      logger.warn(WS_CONTEXT, 'Failed to catch up missed events', error)
     }
   }
 
-  private clearHeartbeatTimeout(): void {
-    if (this.heartbeatTimeout) {
-      clearTimeout(this.heartbeatTimeout)
-      this.heartbeatTimeout = null
-    }
+  /**
+   * Override destroy to add logging
+   */
+  override destroy(): void {
+    super.destroy()
+    logger.info(WS_CONTEXT, 'WebSocket service destroyed')
   }
 }
 

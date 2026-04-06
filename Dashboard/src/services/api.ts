@@ -231,14 +231,18 @@ interface RefreshResponse {
 }
 
 export const authAPI = {
-  async login(email: string, password: string): Promise<LoginResponse> {
+  async login(email: string, password: string, totpCode?: string): Promise<LoginResponse & { requires_2fa?: boolean }> {
     // Disable retry on 401 - login failures should show the real error,
     // not trigger token refresh (which can't work before authentication)
-    const data = await fetchAPI<LoginResponse>('/api/auth/login', {
+    const body: Record<string, string> = { email, password }
+    if (totpCode) body.totp_code = totpCode
+    const data = await fetchAPI<LoginResponse & { requires_2fa?: boolean }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password } as LoginRequest),
+      body: JSON.stringify(body),
     }, false)
-    setAuthToken(data.access_token)
+    if (data.access_token) {
+      setAuthToken(data.access_token)
+    }
     return data
   },
 
@@ -266,6 +270,25 @@ export const authAPI = {
       return { access_token: newToken, refresh_token: refreshToken || undefined }
     }
     return null
+  },
+
+  // 2FA endpoints
+  async setup2FA(): Promise<{ secret: string; otpauth_url: string; qr_url: string }> {
+    return fetchAPI('/api/auth/2fa/setup', { method: 'POST' })
+  },
+
+  async verify2FA(code: string): Promise<{ enabled: boolean; message: string }> {
+    return fetchAPI('/api/auth/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    })
+  },
+
+  async disable2FA(code: string): Promise<{ enabled: boolean; message: string }> {
+    return fetchAPI('/api/auth/2fa/disable', {
+      method: 'DELETE',
+      body: JSON.stringify({ code }),
+    })
   },
 }
 
@@ -681,6 +704,8 @@ interface RoundItem {
   qty: number
   unit_price_cents: number
   notes: string | null
+  is_voided?: boolean
+  void_reason?: string | null
 }
 
 export interface Round {
@@ -1053,6 +1078,10 @@ export const tableAPI = {
   async getSessionDetail(tableId: number): Promise<TableSessionDetail> {
     return fetchAPI<TableSessionDetail>(`/api/waiter/tables/${tableId}/session`)
   },
+
+  async getQRUrl(tableId: number): Promise<{ url: string; table_code: string; branch_slug: string }> {
+    return fetchAPI<{ url: string; table_code: string; branch_slug: string }>(`/api/admin/tables/${tableId}/qr-url`)
+  },
 }
 
 // =============================================================================
@@ -1143,6 +1172,16 @@ export const kitchenAPI = {
   async getRound(roundId: number): Promise<Round> {
     return fetchAPI<Round>(`/api/kitchen/rounds/${roundId}`)
   },
+
+  async voidItem(
+    itemId: number,
+    reason: string
+  ): Promise<{ success: boolean; item_id: number; round_id: number; round_canceled: boolean; message: string }> {
+    return fetchAPI(`/api/waiter/rounds/items/${itemId}/void`, {
+      method: 'PATCH',
+      body: JSON.stringify({ reason }),
+    })
+  },
 }
 
 // =============================================================================
@@ -1230,6 +1269,33 @@ export interface HourlyOrders {
   order_count: number
 }
 
+export interface WaiterPerformance {
+  user_id: number
+  user_name: string
+  total_tables_served: number
+  total_rounds_processed: number
+  total_revenue_cents: number
+  total_tips_cents: number
+  avg_service_time_minutes: number
+  total_service_calls: number
+  avg_response_time_seconds: number
+}
+
+export interface AuditLogEntry {
+  id: number
+  tenant_id: number
+  user_id: number | null
+  user_email: string | null
+  action: string
+  entity_type: string
+  entity_id: number | null
+  old_values: Record<string, unknown> | null
+  new_values: Record<string, unknown> | null
+  ip_address: string | null
+  user_agent: string | null
+  created_at: string
+}
+
 // =============================================================================
 // Reports API
 // =============================================================================
@@ -1291,6 +1357,40 @@ export const reportsAPI = {
     if (branchId) params.append('branch_id', String(branchId))
     params.append('days', String(days))
     return fetchAPI<HourlyOrders[]>(`/api/admin/reports/orders-by-hour?${params.toString()}`)
+  },
+
+  async getWaiterPerformance(
+    branchId?: number,
+    days: number = 30,
+    dateFrom?: string,
+    dateTo?: string,
+  ): Promise<WaiterPerformance[]> {
+    const params = new URLSearchParams()
+    if (branchId) params.append('branch_id', String(branchId))
+    params.append('days', String(days))
+    if (dateFrom) params.append('date_from', dateFrom)
+    if (dateTo) params.append('date_to', dateTo)
+    return fetchAPI<WaiterPerformance[]>(
+      `/api/admin/reports/waiter-performance?${params.toString()}`,
+    )
+  },
+}
+
+export const auditAPI = {
+  async getAuditLog(params: {
+    entity_type?: string
+    action?: string
+    user_id?: number
+    limit?: number
+    offset?: number
+  }): Promise<AuditLogEntry[]> {
+    const searchParams = new URLSearchParams()
+    if (params.entity_type) searchParams.append('entity_type', params.entity_type)
+    if (params.action) searchParams.append('action', params.action)
+    if (params.user_id) searchParams.append('user_id', String(params.user_id))
+    searchParams.append('limit', String(params.limit ?? 100))
+    searchParams.append('offset', String(params.offset ?? 0))
+    return fetchAPI<AuditLogEntry[]>(`/api/admin/audit-log?${searchParams.toString()}`)
   },
 }
 
@@ -2500,5 +2600,295 @@ export const crmAPI = {
 
   async loyaltyReport(): Promise<unknown> {
     return fetchAPI('/api/admin/loyalty/report')
+  },
+}
+
+
+// =============================================================================
+// Product Customization Types
+// =============================================================================
+
+export interface CustomizationOption {
+  id: number
+  tenant_id: number
+  name: string
+  category: string | null
+  extra_cost_cents: number
+  order: number
+  is_active: boolean
+  product_ids: number[]
+}
+
+export interface CustomizationOptionCreate {
+  name: string
+  category?: string | null
+  extra_cost_cents?: number
+  order?: number
+}
+
+export interface CustomizationOptionUpdate {
+  name?: string
+  category?: string | null
+  extra_cost_cents?: number
+  order?: number
+}
+
+// =============================================================================
+// Admin API - Product Customizations
+// =============================================================================
+
+export const customizationAPI = {
+  async list(): Promise<CustomizationOption[]> {
+    return fetchAPI<CustomizationOption[]>('/api/admin/customizations')
+  },
+
+  async get(id: number): Promise<CustomizationOption> {
+    return fetchAPI<CustomizationOption>(`/api/admin/customizations/${id}`)
+  },
+
+  async create(data: CustomizationOptionCreate): Promise<CustomizationOption> {
+    return fetchAPI<CustomizationOption>('/api/admin/customizations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async update(id: number, data: CustomizationOptionUpdate): Promise<CustomizationOption> {
+    return fetchAPI<CustomizationOption>(`/api/admin/customizations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async delete(id: number): Promise<void> {
+    return fetchAPI(`/api/admin/customizations/${id}`, { method: 'DELETE' })
+  },
+
+  async linkProduct(optionId: number, productId: number): Promise<void> {
+    return fetchAPI(`/api/admin/customizations/${optionId}/products/${productId}`, {
+      method: 'POST',
+    })
+  },
+
+  async unlinkProduct(optionId: number, productId: number): Promise<void> {
+    return fetchAPI(`/api/admin/customizations/${optionId}/products/${productId}`, {
+      method: 'DELETE',
+    })
+  },
+
+  async setProductLinks(optionId: number, productIds: number[]): Promise<CustomizationOption> {
+    return fetchAPI<CustomizationOption>(`/api/admin/customizations/${optionId}/products`, {
+      method: 'PUT',
+      body: JSON.stringify({ product_ids: productIds }),
+    })
+  },
+}
+
+
+// =============================================================================
+// Reservation Types
+// =============================================================================
+
+export interface Reservation {
+  id: number
+  tenant_id: number
+  branch_id: number
+  customer_name: string
+  customer_phone: string | null
+  customer_email: string | null
+  party_size: number
+  reservation_date: string
+  reservation_time: string
+  duration_minutes: number
+  table_id: number | null
+  status: string
+  notes: string | null
+  is_active: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface ReservationCreate {
+  branch_id: number
+  customer_name: string
+  customer_phone?: string | null
+  customer_email?: string | null
+  party_size: number
+  reservation_date: string
+  reservation_time: string
+  duration_minutes?: number
+  table_id?: number | null
+  notes?: string | null
+}
+
+export interface ReservationUpdate {
+  customer_name?: string
+  customer_phone?: string | null
+  customer_email?: string | null
+  party_size?: number
+  reservation_date?: string
+  reservation_time?: string
+  duration_minutes?: number
+  table_id?: number | null
+  notes?: string | null
+}
+
+// =============================================================================
+// Admin API - Reservations
+// =============================================================================
+
+export const reservationAPI = {
+  async list(branchId?: number, date?: string, status?: string): Promise<Reservation[]> {
+    const params = new URLSearchParams()
+    if (branchId) params.set('branch_id', String(branchId))
+    if (date) params.set('date', date)
+    if (status) params.set('status', status)
+    const qs = params.toString()
+    return fetchAPI<Reservation[]>(`/api/admin/reservations${qs ? `?${qs}` : ''}`)
+  },
+
+  async get(id: number): Promise<Reservation> {
+    return fetchAPI<Reservation>(`/api/admin/reservations/${id}`)
+  },
+
+  async create(data: ReservationCreate): Promise<Reservation> {
+    return fetchAPI<Reservation>('/api/admin/reservations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async update(id: number, data: ReservationUpdate): Promise<Reservation> {
+    return fetchAPI<Reservation>(`/api/admin/reservations/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateStatus(id: number, status: string): Promise<Reservation> {
+    return fetchAPI<Reservation>(`/api/admin/reservations/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    })
+  },
+
+  async delete(id: number): Promise<void> {
+    return fetchAPI(`/api/admin/reservations/${id}`, { method: 'DELETE' })
+  },
+}
+
+
+// =============================================================================
+// Delivery / Takeout Types
+// =============================================================================
+
+export interface DeliveryOrderItem {
+  id: number
+  product_id: number
+  product_name: string | null
+  qty: number
+  unit_price_cents: number
+  subtotal_cents: number
+  notes: string | null
+}
+
+export interface DeliveryOrder {
+  id: number
+  tenant_id: number
+  branch_id: number
+  order_type: string // TAKEOUT | DELIVERY
+  customer_name: string
+  customer_phone: string
+  customer_email: string | null
+  delivery_address: string | null
+  delivery_instructions: string | null
+  delivery_lat: number | null
+  delivery_lng: number | null
+  estimated_ready_at: string | null
+  estimated_delivery_at: string | null
+  status: string
+  total_cents: number
+  payment_method: string | null
+  is_paid: boolean
+  notes: string | null
+  items: DeliveryOrderItem[]
+  is_active: boolean
+  created_at: string | null
+  updated_at: string | null
+}
+
+export interface DeliveryOrderCreateItem {
+  product_id: number
+  qty: number
+  notes?: string | null
+}
+
+export interface DeliveryOrderCreate {
+  order_type: string
+  customer_name: string
+  customer_phone: string
+  customer_email?: string | null
+  delivery_address?: string | null
+  delivery_instructions?: string | null
+  payment_method?: string | null
+  notes?: string | null
+  items: DeliveryOrderCreateItem[]
+}
+
+export interface DeliveryOrderUpdate {
+  customer_name?: string
+  customer_phone?: string
+  customer_email?: string | null
+  delivery_address?: string | null
+  delivery_instructions?: string | null
+  payment_method?: string | null
+  is_paid?: boolean
+  notes?: string | null
+}
+
+// =============================================================================
+// Admin API - Delivery / Takeout
+// =============================================================================
+
+export const deliveryAPI = {
+  async list(
+    branchId: number,
+    status?: string,
+    orderType?: string,
+  ): Promise<DeliveryOrder[]> {
+    const params = new URLSearchParams()
+    params.set('branch_id', String(branchId))
+    if (status) params.set('status', status)
+    if (orderType) params.set('type', orderType)
+    return fetchAPI<DeliveryOrder[]>(`/api/admin/delivery/orders?${params.toString()}`)
+  },
+
+  async get(id: number): Promise<DeliveryOrder> {
+    return fetchAPI<DeliveryOrder>(`/api/admin/delivery/orders/${id}`)
+  },
+
+  async create(branchId: number, data: DeliveryOrderCreate): Promise<DeliveryOrder> {
+    return fetchAPI<DeliveryOrder>(`/api/admin/delivery/orders?branch_id=${branchId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async update(id: number, data: DeliveryOrderUpdate): Promise<DeliveryOrder> {
+    return fetchAPI<DeliveryOrder>(`/api/admin/delivery/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  },
+
+  async updateStatus(id: number, status: string): Promise<DeliveryOrder> {
+    return fetchAPI<DeliveryOrder>(`/api/admin/delivery/orders/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    })
+  },
+
+  async delete(id: number): Promise<void> {
+    return fetchAPI(`/api/admin/delivery/orders/${id}`, { method: 'DELETE' })
   },
 }

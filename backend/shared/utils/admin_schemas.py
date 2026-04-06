@@ -9,7 +9,7 @@ Clean Architecture: Inner layers (services) should not depend on outer layers (r
 By placing schemas in shared/utils/, they can be imported by any layer.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from typing import Optional
 from pydantic import BaseModel, field_validator, Field
 
@@ -781,6 +781,19 @@ class SalesReportOutput(BaseModel):
     summary: ReportsSummaryOutput
 
 
+class WaiterPerformanceOutput(BaseModel):
+    """Per-waiter performance stats."""
+    user_id: int
+    user_name: str
+    total_tables_served: int
+    total_rounds_processed: int
+    total_revenue_cents: int
+    total_tips_cents: int
+    avg_service_time_minutes: float
+    total_service_calls: int
+    avg_response_time_seconds: float
+
+
 # =============================================================================
 # Restore Schemas
 # =============================================================================
@@ -1052,3 +1065,163 @@ class FoodCostReportItem(BaseModel):
     total_cost_cents: int
     selling_price_cents: int | None = None
     food_cost_percent: float
+
+
+# =============================================================================
+# Product Customization Schemas
+# =============================================================================
+
+
+class CustomizationOptionOutput(BaseModel):
+    """Output for a customization option."""
+    id: int
+    tenant_id: int
+    name: str
+    category: str | None = None
+    extra_cost_cents: int = 0
+    order: int = 0
+    is_active: bool
+    product_ids: list[int] = []
+
+    class Config:
+        from_attributes = True
+
+
+class CustomizationOptionCreate(BaseModel):
+    """Create a customization option."""
+    name: str
+    category: str | None = None
+    extra_cost_cents: int = 0
+    order: int = 0
+
+
+class CustomizationOptionUpdate(BaseModel):
+    """Update a customization option."""
+    name: str | None = None
+    category: str | None = None
+    extra_cost_cents: int | None = None
+    order: int | None = None
+
+
+class CustomizationOptionLinkRequest(BaseModel):
+    """Request to link/unlink products to a customization option."""
+    product_ids: list[int]
+
+
+# =============================================================================
+# Reservation Schemas
+# =============================================================================
+
+
+class ReservationOutput(BaseModel):
+    """Output for a reservation."""
+    id: int
+    tenant_id: int
+    branch_id: int
+    customer_name: str
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    party_size: int
+    reservation_date: date
+    reservation_time: time
+    duration_minutes: int = 90
+    table_id: int | None = None
+    status: str
+    notes: str | None = None
+    is_active: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class ReservationCreate(BaseModel):
+    """Create a reservation."""
+    branch_id: int
+    customer_name: str
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    party_size: int
+    reservation_date: date
+    reservation_time: time
+    duration_minutes: int = 90
+    table_id: int | None = None
+    notes: str | None = None
+
+
+class ReservationUpdate(BaseModel):
+    """Update a reservation."""
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    party_size: int | None = None
+    reservation_date: date | None = None
+    reservation_time: time | None = None
+    duration_minutes: int | None = None
+    table_id: int | None = None
+    notes: str | None = None
+
+
+class ReservationStatusUpdate(BaseModel):
+    """Update reservation status."""
+    status: str
+
+
+# =============================================================================
+# Delivery / Takeout Schemas
+# =============================================================================
+
+
+class DeliveryOrderItemInput(BaseModel):
+    """Single item in a delivery order creation request."""
+    product_id: int
+    qty: int = Field(default=1, ge=1)
+    notes: str | None = None
+
+
+class DeliveryOrderCreate(BaseModel):
+    """Create a delivery/takeout order."""
+    order_type: str = Field(pattern="^(TAKEOUT|DELIVERY)$")
+    customer_name: str = Field(min_length=1)
+    customer_phone: str = Field(min_length=1)
+    customer_email: str | None = None
+    delivery_address: str | None = None
+    delivery_instructions: str | None = None
+    delivery_lat: float | None = None
+    delivery_lng: float | None = None
+    estimated_ready_at: datetime | None = None
+    estimated_delivery_at: datetime | None = None
+    payment_method: str | None = Field(default=None, pattern="^(CASH|CARD|MP|TRANSFER)$")
+    notes: str | None = None
+    items: list[DeliveryOrderItemInput] = Field(min_length=1)
+
+
+class DeliveryOrderUpdate(BaseModel):
+    """Update delivery order details."""
+    customer_name: str | None = None
+    customer_phone: str | None = None
+    customer_email: str | None = None
+    delivery_address: str | None = None
+    delivery_instructions: str | None = None
+    delivery_lat: float | None = None
+    delivery_lng: float | None = None
+    estimated_ready_at: datetime | None = None
+    estimated_delivery_at: datetime | None = None
+    payment_method: str | None = Field(default=None, pattern="^(CASH|CARD|MP|TRANSFER)$")
+    is_paid: bool | None = None
+    notes: str | None = None
+
+
+class DeliveryOrderStatusUpdate(BaseModel):
+    """Update delivery order status."""
+    status: str = Field(pattern="^(RECEIVED|PREPARING|READY|OUT_FOR_DELIVERY|DELIVERED|PICKED_UP|CANCELED)$")
+
+
+class DeliveryAssignInfo(BaseModel):
+    """Assign delivery info to an order."""
+    delivery_address: str | None = None
+    delivery_instructions: str | None = None
+    delivery_lat: float | None = None
+    delivery_lng: float | None = None
+    customer_phone: str | None = None

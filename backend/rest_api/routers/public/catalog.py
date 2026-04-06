@@ -48,7 +48,10 @@ from shared.utils.schemas import (
     ProductCookingOutput,
 )
 from rest_api.services.catalog.product_view import get_product_complete
+from shared.infrastructure.cache.menu_cache import get_cached_menu, set_cached_menu
+from shared.config.logging import get_logger
 
+logger = get_logger("public-catalog")
 
 router = APIRouter(prefix="/api/public", tags=["catalog"])
 
@@ -104,7 +107,13 @@ def get_menu(request: Request, branch_slug: str, db: Session = Depends(get_db)) 
     with their prices for the specified branch.
 
     This endpoint is public and does not require authentication.
+    Responses are cached in Redis for 5 minutes.
     """
+    # Check cache first
+    cached = get_cached_menu(branch_slug)
+    if cached:
+        return MenuOutput(**cached)
+
     # Find branch by slug
     branch = db.scalar(
         select(Branch).where(
@@ -170,7 +179,6 @@ def get_menu(request: Request, branch_slug: str, db: Session = Depends(get_db)) 
                 Product.category_id.in_(category_ids),
                 Product.is_active.is_(True),
                 BranchProduct.branch_id == branch.id,
-                BranchProduct.is_available == True,
             )
         ).all()
     else:
@@ -292,6 +300,7 @@ def get_menu(request: Request, branch_slug: str, db: Session = Depends(get_db)) 
                 try:
                     allergen_ids = json.loads(product.allergen_ids)
                 except (json.JSONDecodeError, TypeError):
+                    logger.error(f"Invalid allergen_ids JSON for product {product.id}")
                     allergen_ids = []
 
             # Build canonical model outputs
@@ -338,12 +347,17 @@ def get_menu(request: Request, branch_slug: str, db: Session = Depends(get_db)) 
             )
         )
 
-    return MenuOutput(
+    menu = MenuOutput(
         branch_id=branch.id,
         branch_name=branch.name,
         branch_slug=branch.slug,
         categories=category_outputs,
     )
+
+    # Cache the response for subsequent requests
+    set_cached_menu(branch_slug, menu.model_dump())
+
+    return menu
 
 
 @router.get("/menu/{branch_slug}/products/{product_id}", response_model=ProductOutput)
@@ -397,6 +411,7 @@ def get_product(
             import json
             allergen_ids = json.loads(product.allergen_ids)
         except (json.JSONDecodeError, TypeError):
+            logger.error(f"Invalid allergen_ids JSON for product {product.id}")
             allergen_ids = []
 
     return ProductOutput(

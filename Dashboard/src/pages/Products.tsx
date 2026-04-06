@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useActionState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, Filter, Star, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -86,8 +87,9 @@ const initialFormData: ProductFormData = {
 }
 
 export function ProductsPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Productos')
+  useDocumentTitle(t('pages.products.title'))
 
   const navigate = useNavigate()
 
@@ -189,10 +191,10 @@ export function ProductsPage() {
       try {
         if (selectedProduct) {
           updateProduct(selectedProduct.id, data)
-          toast.success('Producto actualizado correctamente')
+          toast.success(t('toasts.updateSuccess', { entity: t('pages.products.title') }))
         } else {
           addProduct(data)
-          toast.success('Producto creado correctamente')
+          toast.success(t('toasts.createSuccess', { entity: t('pages.products.title') }))
         }
         return { isSuccess: true }
       } catch (error) {
@@ -303,11 +305,11 @@ export function ProductsPage() {
 
   const openCreateModal = useCallback(() => {
     if (!selectedBranchId) {
-      toast.error('Selecciona una sucursal primero')
+      toast.error(t('common.selectBranchFirst'))
       return
     }
     if (selectableCategories.length === 0) {
-      toast.error('No hay categorias en esta sucursal. Crea una primero.')
+      toast.error(t('pages.categories.noCategories'))
       return
     }
     setSelectedProduct(null)
@@ -386,7 +388,7 @@ export function ProductsPage() {
         return
       }
 
-      toast.success('Producto eliminado correctamente')
+      toast.success(t('toasts.deleteSuccess', { entity: t('pages.products.title') }))
       setIsDeleteOpen(false)
     } catch (error) {
       const message = handleError(error, 'ProductsPage.handleDelete')
@@ -598,15 +600,15 @@ export function ProductsPage() {
   if (!selectedBranchId) {
     return (
       <PageContainer
-        title="Productos"
-        description="Selecciona una sucursal para ver sus productos"
+        title={t('pages.products.title')}
+        description={t('pages.products.selectBranch')}
         helpContent={helpContent.products}
       >
         <Card className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
-            Selecciona una sucursal desde el Dashboard para ver sus productos
+            {t('pages.products.selectBranch')}
           </p>
-          <Button onClick={() => navigate('/')}>Ir al Dashboard</Button>
+          <Button onClick={() => navigate('/')}>{t('common.goToDashboard')}</Button>
         </Card>
       </PageContainer>
     )
@@ -619,13 +621,13 @@ export function ProductsPage() {
       <meta name="description" content={`${branchProducts.length} productos en ${selectedBranch?.name || 'la sucursal'}`} />
 
       <PageContainer
-        title={`Productos - ${selectedBranch?.name || ''}`}
-        description={`${branchProducts.length} productos en ${selectedBranch?.name || 'la sucursal'}`}
+        title={`${t('pages.products.title')} - ${selectedBranch?.name || ''}`}
+        description={`${branchProducts.length} ${t('pages.subcategories.productsCount')} - ${selectedBranch?.name || ''}`}
         helpContent={helpContent.products}
         actions={
           canCreate ? (
             <Button onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-              Nuevo Producto
+              {t('pages.products.newProduct')}
             </Button>
           ) : undefined
         }
@@ -668,7 +670,7 @@ export function ProductsPage() {
                   setFilterSubcategory('')
                 }}
               >
-                Limpiar filtros
+                {t('pages.subcategories.clearFilter')}
               </Button>
             )}
             <div className="ml-auto text-sm text-[var(--text-muted)]">
@@ -681,7 +683,7 @@ export function ProductsPage() {
           <Table
             data={paginatedProducts}
             columns={columns}
-            emptyMessage="No hay productos. Crea uno para comenzar."
+            emptyMessage={t('pages.products.noProducts')}
             ariaLabel="Lista de productos"
           />
           <Pagination
@@ -697,15 +699,15 @@ export function ProductsPage() {
         <Modal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
-          title={selectedProduct ? 'Editar Producto' : 'Nuevo Producto'}
+          title={selectedProduct ? t('pages.products.editProduct') : t('pages.products.newProduct')}
           size="lg"
           footer={
             <>
               <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button type="submit" form="product-form" isLoading={isPending}>
-                {selectedProduct ? 'Guardar' : 'Crear'}
+                {selectedProduct ? t('common.save') : t('common.create')}
               </Button>
             </>
           }
@@ -755,12 +757,12 @@ export function ProductsPage() {
                   </div>
                 }
               />
-              <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+              <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <Select
-                label="Categoria"
+                label={t('pages.products.category')}
                 name="category_id"
                 options={categoryOptions}
                 value={formData.category_id}
@@ -770,7 +772,7 @@ export function ProductsPage() {
               />
 
               <Select
-                label="Subcategoria"
+                label={t('pages.products.subcategory')}
                 name="subcategory_id"
                 options={formSubcategoryOptions}
                 value={formData.subcategory_id}
@@ -784,7 +786,7 @@ export function ProductsPage() {
             </div>
 
             <Input
-              label="Nombre"
+              label={t('common.name')}
               name="name"
               value={formData.name}
               onChange={(e) =>
@@ -795,7 +797,7 @@ export function ProductsPage() {
             />
 
             <Textarea
-              label="Descripcion"
+              label={t('common.description')}
               name="description"
               value={formData.description}
               onChange={(e) =>
@@ -808,7 +810,7 @@ export function ProductsPage() {
 
             <input type="hidden" name="price" value={formData.price} />
             <BranchPriceInput
-              label="Precio"
+              label={t('common.price')}
               defaultPrice={formData.price}
               branchPrices={formData.branch_prices}
               useBranchPrices={formData.use_branch_prices}
@@ -827,7 +829,7 @@ export function ProductsPage() {
 
             <input type="hidden" name="image" value={formData.image} />
             <ImageUpload
-              label="Imagen"
+              label={t('common.image')}
               value={formData.image}
               onChange={(url) =>
                 setFormData((prev) => ({ ...prev, image: url }))
@@ -835,7 +837,7 @@ export function ProductsPage() {
             />
 
             <AllergenPresenceEditor
-              label="Alergenos"
+              label={t('pages.products.allergens')}
               value={formData.allergens}
               onChange={(allergens) =>
                 setFormData((prev) => ({ ...prev, allergens }))
@@ -843,7 +845,7 @@ export function ProductsPage() {
             />
 
             <Select
-              label="Insignia"
+              label={t('pages.products.badge')}
               name="badge"
               placeholder="Sin insignia"
               value={formData.badge}
@@ -860,7 +862,7 @@ export function ProductsPage() {
             />
 
             <Select
-              label="Sello"
+              label={t('pages.products.seal')}
               name="seal"
               placeholder="Sin sello"
               value={formData.seal}
@@ -1185,7 +1187,7 @@ export function ProductsPage() {
 
             <div className="flex gap-6">
               <Toggle
-                label="Destacado"
+                label={t('pages.products.featured')}
                 name="featured"
                 checked={formData.featured}
                 onChange={(e) =>
@@ -1194,7 +1196,7 @@ export function ProductsPage() {
               />
 
               <Toggle
-                label="Popular"
+                label={t('pages.products.popular')}
                 name="popular"
                 checked={formData.popular}
                 onChange={(e) =>
@@ -1203,7 +1205,7 @@ export function ProductsPage() {
               />
 
               <Toggle
-                label="Activo"
+                label={t('common.active')}
                 name="is_active"
                 checked={formData.is_active}
                 onChange={(e) =>
@@ -1219,9 +1221,9 @@ export function ProductsPage() {
           isOpen={isDeleteOpen}
           onClose={() => setIsDeleteOpen(false)}
           onConfirm={handleDelete}
-          title="Eliminar Producto"
-          message={`¿Estas seguro de eliminar "${selectedProduct?.name}"?`}
-          confirmLabel="Eliminar"
+          title={t('pages.products.deleteProduct')}
+          message={`${t('modals.confirmDelete')} "${selectedProduct?.name}"?`}
+          confirmLabel={t('common.delete')}
         />
       </PageContainer>
     </>

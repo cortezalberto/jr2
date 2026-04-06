@@ -180,7 +180,7 @@ export function formatFormErrors<T>(
  * @example
  * ```typescript
  * if (hasFormErrors(errors)) {
- *   console.log('Form has errors')
+ *   logger.debug('Form', 'Form has errors')
  * }
  * ```
  */

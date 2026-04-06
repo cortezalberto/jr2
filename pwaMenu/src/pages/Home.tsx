@@ -72,6 +72,7 @@ function convertBackendProduct(prod: ProductFrontend): Product {
     popular: prod.popular,
     badge: prod.badge || undefined,
     allergen_ids: prod.allergenIds?.map(String),
+    is_available: prod.isAvailable,
     use_branch_prices: false,
   }
 }

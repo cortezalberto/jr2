@@ -2,7 +2,6 @@
 CRUD Services - Generic operations for entity management.
 
 Provides:
-- CRUDFactory: Generic CRUD operations with tenant isolation
 - EntityOutputBuilder: Convert SQLAlchemy models to Pydantic schemas
 - soft_delete: Soft delete with audit trail
 - CascadeDeleteService: Cascade soft delete with audit preservation
@@ -10,7 +9,6 @@ Provides:
 - Repository Pattern: Type-safe data access with tenant isolation (ARCH-OPP-06)
 """
 
-from .factory import CRUDFactory, CRUDConfig
 from .entity_builder import EntityOutputBuilder, build_output
 from .repository import (
     BaseRepository,
@@ -44,9 +42,6 @@ from .audit import (
 )
 
 __all__ = [
-    # Factory
-    "CRUDFactory",
-    "CRUDConfig",
     # Entity builder
     "EntityOutputBuilder",
     "build_output",

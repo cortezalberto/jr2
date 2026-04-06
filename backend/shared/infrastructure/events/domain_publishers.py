@@ -304,6 +304,9 @@ async def publish_product_availability_event(
 
     Notifies all channels (waiters, kitchen, admin, diners) that a product's
     availability has changed so menus can update in real-time.
+
+    Uses Redis Streams (critical events) so ws_gateway can route the event
+    to all connected clients including diner sessions for the branch.
     """
     from .event_types import PRODUCT_AVAILABILITY_CHANGED
 
@@ -318,9 +321,16 @@ async def publish_product_availability_event(
         actor={"user_id": actor_user_id, "role": actor_role},
     )
 
-    # Publish to waiters, kitchen, and admin for real-time menu updates
+    # Publish to waiters and admin via Pub/Sub for real-time menu updates
     await publish_to_waiters(redis_client, branch_id, event)
     await publish_to_admin(redis_client, branch_id, event)
+
+    # Also publish to critical stream so ws_gateway can broadcast to diner sessions
+    await publish_to_stream(
+        redis_client=redis_client,
+        stream=STREAM_EVENTS_CRITICAL,
+        event=event,
+    )
 
 
 async def publish_cart_event(

@@ -6,6 +6,9 @@ import { useEscapeKey } from '../hooks/useEscapeKey'
 import { useAriaAnnounce } from '../hooks/useAriaAnnounce'
 import { ANIMATION, QUANTITY } from '../constants/timing'
 import { getSafeImageUrl, FALLBACK_IMAGES } from '../utils/validation'
+import { dinerAPI } from '../services/api'
+import { useServiceCallStore } from '../stores/serviceCallStore'
+import { callWaiterLogger } from '../utils/logger'
 import type { Product } from '../types'
 
 interface ProductDetailModalProps {
@@ -47,6 +50,11 @@ function ProductDetailModalInner({ product, onClose }: ProductDetailModalInnerPr
   const [ariaMessage, setAriaMessage] = useState('')
   const addToCart = useTableStore((state) => state.addToCart)
   const session = useSession()
+
+  // Service call state for call waiter button
+  const addServiceCall = useServiceCallStore((s) => s.addCall)
+  const [callingWaiter, setCallingWaiter] = useState(false)
+  const [waiterCallSuccess, setWaiterCallSuccess] = useState(false)
 
   // RACE CONDITION FIX: Track last click time to throttle rapid clicks
   const lastClickRef = useRef<number>(0)
@@ -155,6 +163,7 @@ function ProductDetailModalInner({ product, onClose }: ProductDetailModalInnerPr
   // product is guaranteed by wrapper component
   const totalPrice = product.price * quantity
   const isPaying = session?.status === 'paying'
+  const isUnavailable = product.is_available === false
   const isAdding = isPending || formState.status === 'adding'
 
   return (
@@ -237,6 +246,13 @@ function ProductDetailModalInner({ product, onClose }: ProductDetailModalInnerPr
             )}
           </div>
 
+          {/* Unavailable product warning */}
+          {isUnavailable && (
+            <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+              <p className="text-red-400 text-sm font-medium">{t('product.unavailableMessage')}</p>
+            </div>
+          )}
+
           {/* Notes */}
           <div className="mb-4">
             <label htmlFor="notes-input" className="block text-white text-sm font-medium mb-2">
@@ -266,20 +282,50 @@ function ProductDetailModalInner({ product, onClose }: ProductDetailModalInnerPr
             {/* Call Waiter Button */}
             <button
               type="button"
-              onClick={() => {
-                // TODO: Implement call waiter functionality
+              disabled={callingWaiter || waiterCallSuccess}
+              onClick={async () => {
+                if (callingWaiter || waiterCallSuccess) return
+                setCallingWaiter(true)
+                try {
+                  callWaiterLogger.info('Creating service call from product modal', { type: 'WAITER_CALL' })
+                  const response = await dinerAPI.createServiceCall({ type: 'WAITER_CALL' })
+                  addServiceCall(response.id, 'WAITER_CALL')
+                  setWaiterCallSuccess(true)
+                  callWaiterLogger.info('Service call created from product modal', { callId: response.id })
+                  // Reset success state after feedback
+                  setTimeout(() => setWaiterCallSuccess(false), 2000)
+                } catch (error) {
+                  callWaiterLogger.error('Failed to create service call from product modal', error)
+                } finally {
+                  setCallingWaiter(false)
+                }
               }}
-              className="py-2 px-3 rounded-xl bg-dark-elevated border border-dark-border text-white text-xs font-medium hover:border-white transition-colors flex items-center gap-1.5"
+              className={`py-2 px-3 rounded-xl border text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed ${
+                waiterCallSuccess
+                  ? 'bg-green-600 border-green-500 text-white'
+                  : 'bg-dark-elevated border-dark-border text-white hover:border-white'
+              }`}
               aria-label={t('header.callWaiter')}
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
-                />
-              </svg>
-              <span>{t('bottomNav.callWaiter')}</span>
+              {waiterCallSuccess ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : callingWaiter ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" aria-hidden="true">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
+                  />
+                </svg>
+              )}
+              <span>{waiterCallSuccess ? t('callWaiter.called') : t('bottomNav.callWaiter')}</span>
             </button>
 
             {/* Quantity controls and Add Button */}
@@ -311,7 +357,7 @@ function ProductDetailModalInner({ product, onClose }: ProductDetailModalInnerPr
               {/* Add to Cart Button */}
               <button
                 type="submit"
-                disabled={isAdding || isPaying}
+                disabled={isAdding || isPaying || isUnavailable}
                 className={`py-2 px-3 rounded-xl font-medium text-xs transition-all flex items-center justify-center gap-1.5 ${showSuccess
                     ? 'bg-green-600 text-white'
                     : 'bg-dark-elevated border border-dark-border text-white hover:border-white'

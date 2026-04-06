@@ -34,6 +34,10 @@ PREFIX_CACHE_PRODUCT = "cache:product:"
 # PERF-MED-04 FIX: Template for branch products cache key
 PREFIX_CACHE_BRANCH_PRODUCTS_TEMPLATE = "cache:branch:{branch_id}:tenant:{tenant_id}:products"
 
+# Menu cache (public endpoint)
+PREFIX_CACHE_MENU = "cache:menu:"
+MENU_CACHE_TTL = 300  # 5 minutes
+
 
 def get_branch_products_cache_key(branch_id: int, tenant_id: int) -> str:
     """PERF-MED-04: Generate cache key for branch products with consistent prefix."""

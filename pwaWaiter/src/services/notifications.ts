@@ -233,6 +233,13 @@ class NotificationService {
           tag: `payment-${event.entity?.payment_id}`,
         }
 
+      case WS_EVENT_TYPES.ROUND_ITEM_VOIDED:
+        return {
+          title: 'Item Anulado',
+          body: `${tableInfo} - ${event.entity?.product_name || 'Item'} anulado${event.entity?.round_canceled ? ' (ronda cancelada)' : ''}`,
+          tag: `void-${event.entity?.item_id}`,
+        }
+
       default:
         return { title: '', body: '', tag: '' }
     }

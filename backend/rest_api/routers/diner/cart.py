@@ -132,17 +132,17 @@ def add_to_cart(
     tenant_id = table_ctx["tenant_id"]
     branch_id = table_ctx["branch_id"]
 
-    # Get session and validate it's open
+    # Get session and validate it's open (PAYING sessions cannot modify cart)
     session = db.scalar(
         select(TableSession).where(
             TableSession.id == session_id,
-            TableSession.status.in_(["OPEN", "PAYING"]),
+            TableSession.status == "OPEN",
         )
     )
     if not session:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Session is closed or invalid",
+            detail="Session is closed or paying — cart modifications are not allowed",
         )
 
     # Validate product exists and is available in this branch
@@ -297,6 +297,14 @@ def update_cart_item(
     tenant_id = table_ctx["tenant_id"]
     branch_id = table_ctx["branch_id"]
 
+    # Block cart modifications when check has been requested
+    session = db.get(TableSession, session_id)
+    if not session or session.status != "OPEN":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session is closed or paying — cart modifications are not allowed",
+        )
+
     # Get cart item with product
     cart_item = db.scalar(
         select(CartItem)
@@ -321,10 +329,8 @@ def update_cart_item(
     if body.notes is not None:
         cart_item.notes = body.notes
 
-    # Increment cart version
-    session = db.get(TableSession, session_id)
-    if session:
-        session.cart_version += 1
+    # Increment cart version (session already fetched in status guard above)
+    session.cart_version += 1
 
     # AUDIT-FIX: Wrap commit in try-except for consistent error handling
     try:
@@ -394,6 +400,14 @@ def remove_cart_item(
     tenant_id = table_ctx["tenant_id"]
     branch_id = table_ctx["branch_id"]
 
+    # Block cart modifications when check has been requested
+    session = db.get(TableSession, session_id)
+    if not session or session.status != "OPEN":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session is closed or paying — cart modifications are not allowed",
+        )
+
     # Get cart item
     cart_item = db.scalar(
         select(CartItem)
@@ -416,10 +430,8 @@ def remove_cart_item(
     # Soft delete
     cart_item.is_active = False
 
-    # Increment cart version
-    session = db.get(TableSession, session_id)
-    if session:
-        session.cart_version += 1
+    # Increment cart version (session already fetched in status guard above)
+    session.cart_version += 1
 
     # AUDIT-FIX: Wrap commit in try-except for consistent error handling
     try:
@@ -534,6 +546,14 @@ def clear_cart(
     tenant_id = table_ctx["tenant_id"]
     branch_id = table_ctx["branch_id"]
 
+    # Block cart modifications when check has been requested
+    session = db.get(TableSession, session_id)
+    if not session or session.status != "OPEN":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session is closed or paying — cart modifications are not allowed",
+        )
+
     # Soft delete all cart items
     cart_items = db.scalars(
         select(CartItem).where(
@@ -545,10 +565,8 @@ def clear_cart(
     for item in cart_items:
         item.is_active = False
 
-    # Reset cart version
-    session = db.get(TableSession, session_id)
-    if session:
-        session.cart_version += 1
+    # Increment cart version (session already fetched in status guard above)
+    session.cart_version += 1
 
     # AUDIT-FIX: Wrap commit in try-except for consistent error handling
     try:

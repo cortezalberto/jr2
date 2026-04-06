@@ -12,6 +12,9 @@ class PaymentResult:
     status: str = "unknown"  # approved, pending, rejected, failed
     redirect_url: Optional[str] = None
     error_message: Optional[str] = None
+    amount_cents: Optional[int] = None
+    external_reference: Optional[str] = None
+    status_detail: Optional[str] = None
 
 
 @dataclass

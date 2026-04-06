@@ -44,6 +44,7 @@ from .event_types import (
     ROUND_READY,
     ROUND_SERVED,
     ROUND_CANCELED,
+    ROUND_ITEM_VOIDED,
     # Service calls
     SERVICE_CALL_CREATED,
     SERVICE_CALL_ACKED,
@@ -58,6 +59,7 @@ from .event_types import (
     TABLE_SESSION_STARTED,
     TABLE_CLEARED,
     TABLE_STATUS_CHANGED,
+    TABLE_TRANSFERRED,
     # Kitchen tickets
     TICKET_IN_PROGRESS,
     TICKET_READY,
@@ -182,6 +184,7 @@ __all__ = [
     "ROUND_READY",
     "ROUND_SERVED",
     "ROUND_CANCELED",
+    "ROUND_ITEM_VOIDED",
     "SERVICE_CALL_CREATED",
     "SERVICE_CALL_ACKED",
     "SERVICE_CALL_CLOSED",

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { comandaAPI, waiterTableAPI } from '../services/api'
+import { storeLogger } from '../utils/logger'
 import type { MenuCompact, ProductCompact, WaiterRoundItem } from '../services/api'
 import { Button } from './Button'
 import { formatPrice } from '../utils/format'
@@ -52,7 +53,7 @@ export function ComandaTab({ branchId, sessionId, onRoundSubmitted }: ComandaTab
       } catch (err) {
         if (isMounted) {
           setMenuError('Error al cargar el menú')
-          console.error('Failed to load compact menu:', err)
+          storeLogger.error('Failed to load compact menu', err)
         }
       } finally {
         if (isMounted) {
@@ -154,7 +155,7 @@ export function ComandaTab({ branchId, sessionId, onRoundSubmitted }: ComandaTab
       clearCart()
       onRoundSubmitted()
     } catch (err) {
-      console.error('Failed to submit round:', err)
+      storeLogger.error('Failed to submit round', err)
       // Could show error toast here
     } finally {
       setIsSubmitting(false)

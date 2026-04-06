@@ -5,6 +5,7 @@
 
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { storeLogger } from './logger'
 import type { FiscalInvoiceData } from '../types/fiscal'
 import { formatInvoiceNumber } from '../types/fiscal'
 
@@ -64,7 +65,7 @@ export async function exportElementToPDF(
     // Save the PDF
     pdf.save(filename)
   } catch (error) {
-    console.error('Error generating PDF:', error)
+    storeLogger.error('Error generating PDF', error)
     throw new Error('No se pudo generar el PDF')
   }
 }

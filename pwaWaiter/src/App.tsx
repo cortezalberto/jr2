@@ -11,6 +11,7 @@ import { PreLoginBranchSelectPage } from './pages/PreLoginBranchSelect'
 import { MainPage } from './pages/MainPage'
 import { OfflineBanner } from './components/OfflineBanner'
 import { PWAManager } from './components/PWAManager'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 export function App() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
@@ -133,10 +134,10 @@ export function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <OfflineBanner />
       <PWAManager />
       {renderContent()}
-    </>
+    </ErrorBoundary>
   )
 }

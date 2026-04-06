@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useActionState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, Filter } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -50,8 +51,9 @@ const initialFormData: SubcategoryFormData = {
 }
 
 export function SubcategoriesPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Subcategorías')
+  useDocumentTitle(t('pages.subcategories.title'))
 
   const navigate = useNavigate()
 
@@ -185,15 +187,15 @@ export function SubcategoriesPage() {
       try {
         if (modal.selectedItem) {
           await updateSubcategoryAsync(modal.selectedItem.id, data)
-          toast.success('Subcategoria actualizada correctamente')
+          toast.success(t('toasts.updateSuccessFem', { entity: t('pages.subcategories.title') }))
         } else {
           await createSubcategoryAsync(data)
-          toast.success('Subcategoria creada correctamente')
+          toast.success(t('toasts.createSuccessFem', { entity: t('pages.subcategories.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'SubcategoriesPage.submitAction')
-        toast.error(`Error al guardar la subcategoria: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.subcategories.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -213,11 +215,11 @@ export function SubcategoriesPage() {
   // SPRINT 12: Simplified modal handlers using custom hook
   const openCreateModal = useCallback(() => {
     if (!selectedBranchId) {
-      toast.error('Selecciona una sucursal primero')
+      toast.error(t('common.selectBranchFirst'))
       return
     }
     if (selectableCategories.length === 0) {
-      toast.error('No hay categorias en esta sucursal. Crea una primero.')
+      toast.error(t('pages.categories.noCategories'))
       return
     }
     const categoryId = filterCategory || selectableCategories[0]?.id || ''
@@ -249,7 +251,7 @@ export function SubcategoriesPage() {
       const result = deleteSubcategoryWithCascade(deleteDialog.item.id)
 
       if (!result.success) {
-        toast.error(result.error || 'Error al eliminar la subcategoria')
+        toast.error(result.error || t('toasts.deleteError', { entity: t('pages.subcategories.title').toLowerCase() }))
         deleteDialog.close()
         return
       }
@@ -257,11 +259,11 @@ export function SubcategoriesPage() {
       // Then delete from backend
       await deleteSubcategoryAsync(deleteDialog.item.id)
 
-      toast.success('Subcategoria eliminada correctamente')
+      toast.success(t('toasts.deleteSuccessFem', { entity: t('pages.subcategories.title') }))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'SubcategoriesPage.handleDelete')
-      toast.error(`Error al eliminar la subcategoria: ${message}`)
+      toast.error(t('toasts.deleteError', { entity: t('pages.subcategories.title').toLowerCase() }) + `: ${message}`)
     }
   }, [deleteDialog, deleteSubcategoryAsync])
 
@@ -269,7 +271,7 @@ export function SubcategoriesPage() {
     () => [
       {
         key: 'image',
-        label: 'Imagen',
+        label: t('common.image'),
         width: 'w-20',
         render: (item) =>
           item.image ? (
@@ -281,7 +283,7 @@ export function SubcategoriesPage() {
           ) : (
             <div
               className="w-12 h-12 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)]"
-              aria-label="Sin imagen"
+              aria-label={t('common.noImage')}
             >
               -
             </div>
@@ -289,49 +291,49 @@ export function SubcategoriesPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item) => <span className="font-medium">{item.name}</span>,
       },
       {
         key: 'category_id',
-        label: 'Categoria',
+        label: t('pages.subcategories.category'),
         render: (item) => (
-          <Badge variant="info">{categoryMap.get(item.category_id) || 'Sin categoria'}</Badge>
+          <Badge variant="info">{categoryMap.get(item.category_id) || t('pages.subcategories.category')}</Badge>
         ),
       },
       {
         key: 'order',
-        label: 'Orden',
+        label: t('common.order'),
         width: 'w-20',
         render: (item) => item.order,
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         width: 'w-24',
         render: (item) =>
           item.is_active !== false ? (
             <Badge variant="success">
-              <span className="sr-only">Estado:</span> Activa
+              <span className="sr-only">{t('common.status')}:</span> {t('common.active')}
             </Badge>
           ) : (
             <Badge variant="danger">
-              <span className="sr-only">Estado:</span> Inactiva
+              <span className="sr-only">{t('common.status')}:</span> {t('common.inactive')}
             </Badge>
           ),
       },
       {
         key: 'products',
-        label: 'Productos',
+        label: t('pages.products.title'),
         width: 'w-28',
         render: (item) => {
           const count = productCountMap.get(item.id) || 0
-          return <span className="text-[var(--text-muted)]">{count} productos</span>
+          return <span className="text-[var(--text-muted)]">{count} {t('pages.subcategories.productsCount')}</span>
         },
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('common.actions'),
         width: 'w-28',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -373,15 +375,15 @@ export function SubcategoriesPage() {
   if (!selectedBranchId) {
     return (
       <PageContainer
-        title="Subcategorias"
-        description="Selecciona una sucursal para ver sus subcategorias"
+        title={t('pages.subcategories.title')}
+        description={t('pages.subcategories.selectBranch')}
         helpContent={helpContent.subcategories}
       >
         <Card className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
-            Selecciona una sucursal desde el Dashboard para ver sus subcategorias
+            {t('pages.subcategories.selectBranch')}
           </p>
-          <Button onClick={() => navigate('/')}>Ir al Dashboard</Button>
+          <Button onClick={() => navigate('/')}>{t('common.goToDashboard')}</Button>
         </Card>
       </PageContainer>
     )
@@ -389,13 +391,13 @@ export function SubcategoriesPage() {
 
   return (
     <PageContainer
-      title={`Subcategorias - ${selectedBranch?.name || ''}`}
-      description={`Administra las subcategorias de ${selectedBranch?.name || 'la sucursal'}`}
+      title={`${t('pages.subcategories.title')} - ${selectedBranch?.name || ''}`}
+      description={`${t('pages.subcategories.description')} ${selectedBranch?.name || ''}`}
       helpContent={helpContent.subcategories}
       actions={
         canCreate ? (
           <Button onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-            Nueva Subcategoria
+            {t('pages.subcategories.newSubcategory')}
           </Button>
         ) : undefined
       }
@@ -406,7 +408,7 @@ export function SubcategoriesPage() {
           <Filter className="w-5 h-5 text-[var(--text-muted)]" aria-hidden="true" />
           <Select
             options={[
-              { value: '', label: 'Todas las categorias' },
+              { value: '', label: t('common.all') + ' ' + t('pages.categories.title').toLowerCase() },
               ...categoryOptions,
             ]}
             value={filterCategory}
@@ -420,7 +422,7 @@ export function SubcategoriesPage() {
               size="sm"
               onClick={() => setFilterCategory('')}
             >
-              Limpiar filtro
+              {t('pages.subcategories.clearFilter')}
             </Button>
           )}
         </div>
@@ -430,7 +432,7 @@ export function SubcategoriesPage() {
         <Table
           data={paginatedSubcategories}
           columns={columns}
-          emptyMessage="No hay subcategorias. Crea una para comenzar."
+          emptyMessage={t('pages.subcategories.noSubcategories')}
           ariaLabel="Lista de subcategorias"
         />
         <Pagination
@@ -446,15 +448,15 @@ export function SubcategoriesPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Subcategoria' : 'Nueva Subcategoria'}
+        title={modal.selectedItem ? t('pages.subcategories.editSubcategory') : t('pages.subcategories.newSubcategory')}
         size="md"
         footer={
           <>
             <Button variant="ghost" onClick={modal.close}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button type="submit" form="subcategory-form" isLoading={isPending}>
-              {modal.selectedItem ? 'Guardar' : 'Crear'}
+              {modal.selectedItem ? t('common.save') : t('common.create')}
             </Button>
           </>
         }
@@ -462,7 +464,7 @@ export function SubcategoriesPage() {
         <form id="subcategory-form" action={formAction} className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <HelpButton
-              title="Formulario de Subcategoria"
+              title={t('pages.subcategories.formTitle')}
               size="sm"
               content={
                 <div className="space-y-3">
@@ -495,25 +497,25 @@ export function SubcategoriesPage() {
                 </div>
               }
             />
-            <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+            <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
           </div>
 
           {/* Hidden input for category_id */}
           <input type="hidden" name="category_id" value={modal.formData.category_id} />
 
           <Select
-            label="Categoria"
+            label={t('pages.subcategories.category')}
             options={categoryOptions}
             value={modal.formData.category_id}
             onChange={(e) =>
               modal.setFormData((prev) => ({ ...prev, category_id: e.target.value }))
             }
-            placeholder="Selecciona una categoria"
+            placeholder={t('pages.subcategories.selectCategory')}
             error={state.errors?.category_id}
           />
 
           <Input
-            label="Nombre"
+            label={t('common.name')}
             name="name"
             value={modal.formData.name}
             onChange={(e) =>
@@ -524,7 +526,7 @@ export function SubcategoriesPage() {
           />
 
           <ImageUpload
-            label="Imagen"
+            label={t('common.image')}
             value={modal.formData.image}
             onChange={(url) =>
               modal.setFormData((prev) => ({ ...prev, image: url }))
@@ -532,7 +534,7 @@ export function SubcategoriesPage() {
           />
 
           <Input
-            label="Orden"
+            label={t('common.order')}
             name="order"
             type="number"
             value={modal.formData.order}
@@ -543,7 +545,7 @@ export function SubcategoriesPage() {
           />
 
           <Toggle
-            label="Subcategoria activa"
+            label={t('pages.subcategories.activeToggle')}
             name="is_active"
             checked={modal.formData.is_active}
             onChange={(e) =>
@@ -559,9 +561,9 @@ export function SubcategoriesPage() {
         isOpen={deleteDialog.isOpen}
         onClose={deleteDialog.close}
         onConfirm={handleDelete}
-        title="Eliminar Subcategoria"
-        message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-        confirmLabel="Eliminar"
+        title={t('pages.subcategories.deleteSubcategory')}
+        message={`${t('modals.confirmDelete')} "${deleteDialog.item?.name}"?`}
+        confirmLabel={t('common.delete')}
       >
         {deleteDialog.item && (() => {
           const preview = getSubcategoryPreview(deleteDialog.item.id)

@@ -31,6 +31,8 @@ All models are organized into domain-specific modules:
 - scheduling: Shift, ShiftTemplate, ShiftTemplateItem, AttendanceLog (employee shifts)
 - crm: CustomerProfile, CustomerVisit, LoyaltyTransaction, LoyaltyRule (CRM & loyalty)
 - floor_plan: FloorPlan, FloorPlanTable (visual table layout)
+- product_customization: CustomizationOption, ProductCustomizationLink (product modifiers)
+- manager_override: ManagerOverride (manager-approved voids, discounts, adjustments)
 """
 
 # Base classes
@@ -141,6 +143,15 @@ from .crm import CustomerProfile, CustomerVisit, LoyaltyTransaction, LoyaltyRule
 
 # Floor plans (visual table layout)
 from .floor_plan import FloorPlan, FloorPlanTable
+
+# Product customization options (modifiers like "sin cebolla", "extra queso")
+from .product_customization import CustomizationOption, ProductCustomizationLink
+
+# Manager overrides (voids, discounts, adjustments)
+from .manager_override import ManagerOverride
+
+# Customer feedback
+from .feedback import Feedback
 
 __all__ = [
     # Base
@@ -259,4 +270,11 @@ __all__ = [
     # Floor Plan
     "FloorPlan",
     "FloorPlanTable",
+    # Product Customization
+    "CustomizationOption",
+    "ProductCustomizationLink",
+    # Manager Override
+    "ManagerOverride",
+    # Feedback
+    "Feedback",
 ]

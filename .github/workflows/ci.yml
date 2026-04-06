@@ -47,6 +47,31 @@ jobs:
         working-directory: backend
         run: python -m pytest tests/ -v --tb=short
 
+      - name: Validate OpenAPI spec
+        env:
+          DATABASE_URL: postgresql+psycopg://postgres:postgres@localhost:5432/menu_ops_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-secret-for-ci-only-32chars!!
+          TABLE_TOKEN_SECRET: test-table-secret-ci-only-32ch!!
+          ENVIRONMENT: test
+        working-directory: backend
+        run: |
+          python -c "
+          import json
+          from rest_api.main import app
+          spec = app.openapi()
+          assert 'openapi' in spec, 'Missing openapi version field'
+          assert 'paths' in spec, 'Missing paths in OpenAPI spec'
+          assert len(spec['paths']) > 0, 'OpenAPI spec has no paths'
+          # Write spec to file for potential artifact upload
+          with open('openapi.json', 'w') as f:
+              json.dump(spec, f, indent=2)
+          print(f'OpenAPI spec validated: {len(spec[\"paths\"])} paths found')
+          "
+
+      - name: Verify codegen script exists
+        run: test -x scripts/generate-types.sh || (echo "scripts/generate-types.sh is missing or not executable" && exit 1)
+
   dashboard:
     runs-on: ubuntu-latest
     defaults:

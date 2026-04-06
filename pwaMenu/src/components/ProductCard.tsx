@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getSafeImageUrl } from '../utils/validation'
 import type { Product } from '../types'
 
@@ -8,6 +9,9 @@ interface ProductCardProps {
 }
 
 export default memo(function ProductCard({ product, onClick }: ProductCardProps) {
+  const { t } = useTranslation()
+  const isUnavailable = product.is_available === false
+
   // Validate image URL
   const safeImageUrl = useMemo(
     () => getSafeImageUrl(product.image, 'product'),
@@ -31,8 +35,8 @@ export default memo(function ProductCard({ product, onClick }: ProductCardProps)
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
-      className="cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-dark-bg rounded-xl sm:rounded-2xl"
-      aria-label={`${product.name} - ${product.description}`}
+      className={`cursor-pointer group focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-dark-bg rounded-xl sm:rounded-2xl ${isUnavailable ? 'opacity-50 grayscale' : ''}`}
+      aria-label={`${product.name} - ${product.description}${isUnavailable ? ` - ${t('product.soldOut')}` : ''}`}
     >
       {/* Image - with lazy loading and dimensions to avoid CLS */}
       <div className="relative aspect-square rounded-xl sm:rounded-2xl overflow-hidden mb-2 sm:mb-3 bg-dark-elevated">
@@ -46,8 +50,17 @@ export default memo(function ProductCard({ product, onClick }: ProductCardProps)
           className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
         />
 
+        {/* Sold out badge */}
+        {isUnavailable && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="bg-red-600/90 text-white text-xs sm:text-sm px-3 py-1.5 rounded-full font-bold uppercase tracking-wide">
+              {t('product.soldOut')}
+            </span>
+          </div>
+        )}
+
         {/* Badge */}
-        {product.badge && (
+        {product.badge && !isUnavailable && (
           <span className="absolute top-2 right-2 sm:top-3 sm:right-3 bg-badge-gold text-black text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 sm:py-1 rounded font-semibold">
             {product.badge}
           </span>

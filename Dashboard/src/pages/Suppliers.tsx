@@ -1,5 +1,6 @@
 import { useMemo, useCallback, useState, useEffect, useActionState } from 'react'
 import { Plus, Pencil, Trash2, Truck } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
@@ -59,7 +60,8 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 export function SuppliersPage() {
-  useDocumentTitle('Proveedores')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.suppliers.title'))
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [loading, setLoading] = useState(false)
@@ -114,7 +116,7 @@ export function SuppliersPage() {
       }
 
       if (!data.name.trim()) {
-        return { errors: { name: 'El nombre es requerido' }, isSuccess: false }
+        return { errors: { name: t('pages.suppliers.nameRequired') }, isSuccess: false }
       }
 
       try {
@@ -132,11 +134,11 @@ export function SuppliersPage() {
         })
 
         if (!res.ok) {
-          const err = await res.json().catch(() => ({ detail: 'Error desconocido' }))
-          return { isSuccess: false, message: err.detail || 'Error al guardar' }
+          const err = await res.json().catch(() => ({ detail: t('pages.suppliers.errorUnknown') }))
+          return { isSuccess: false, message: err.detail || t('pages.suppliers.errorSaving') }
         }
 
-        toast.success(isEditing ? 'Proveedor actualizado' : 'Proveedor creado')
+        toast.success(isEditing ? t('pages.suppliers.supplierUpdated') : t('pages.suppliers.supplierCreated'))
         fetchSuppliers()
         return { isSuccess: true, message: 'Guardado correctamente' }
       } catch (error) {
@@ -167,10 +169,10 @@ export function SuppliersPage() {
         headers: getAuthHeaders(),
       })
       if (res.ok || res.status === 204) {
-        toast.success('Proveedor eliminado')
+        toast.success(t('pages.suppliers.supplierDeleted'))
         fetchSuppliers()
       } else {
-        toast.error('Error al eliminar proveedor')
+        toast.error(t('pages.suppliers.errorDeleting'))
       }
     } catch (error) {
       const message = handleError(error, 'SuppliersPage.handleDelete')
@@ -197,38 +199,38 @@ export function SuppliersPage() {
     () => [
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item: Supplier) => (
           <span className="font-medium text-[var(--text-primary)]">{item.name}</span>
         ),
       },
       {
         key: 'contact_name',
-        label: 'Contacto',
+        label: t('pages.suppliers.contact'),
         render: (item: Supplier) => (
           <span className="text-[var(--text-secondary)]">{item.contact_name || '-'}</span>
         ),
       },
       {
         key: 'phone',
-        label: 'Teléfono',
+        label: t('common.phone'),
         render: (item: Supplier) => (
           <span className="text-[var(--text-secondary)]">{item.phone || '-'}</span>
         ),
       },
       {
         key: 'email',
-        label: 'Email',
+        label: t('common.email'),
         render: (item: Supplier) => (
           <span className="text-[var(--text-secondary)]">{item.email || '-'}</span>
         ),
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         render: (item: Supplier) => (
           <Badge variant={item.is_active ? 'success' : 'danger'}>
-            {item.is_active ? 'Activo' : 'Inactivo'}
+            {item.is_active ? t('common.active') : t('common.inactive')}
           </Badge>
         ),
       },
@@ -262,10 +264,10 @@ export function SuppliersPage() {
 
   return (
     <PageContainer
-      title="Proveedores"
-      description="Gestión de proveedores de ingredientes"
+      title={t('pages.suppliers.title')}
+      description={t('pages.suppliers.descriptionFull')}
       actions={
-        <Button onClick={() => modal.openCreate(initialFormData)} aria-label="Crear proveedor">
+        <Button onClick={() => modal.openCreate(initialFormData)} aria-label={t('pages.suppliers.newSupplier')}>
           <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
           Nuevo Proveedor
         </Button>
@@ -275,16 +277,16 @@ export function SuppliersPage() {
         {loading ? (
           <div className="flex items-center justify-center py-12" role="status">
             <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-            <span className="sr-only">Cargando proveedores</span>
+            <span className="sr-only">{t('pages.suppliers.loadingSuppliers')}</span>
           </div>
         ) : sortedSuppliers.length === 0 ? (
           <div className="text-center py-12 text-[var(--text-muted)]">
             <Truck className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-            <p>No hay proveedores registrados</p>
+            <p>{t('pages.suppliers.noSuppliers')}</p>
           </div>
         ) : (
           <>
-            <Table data={paginatedItems} columns={columns} ariaLabel="Tabla de proveedores" />
+            <Table data={paginatedItems} columns={columns} ariaLabel={t('pages.suppliers.suppliersTable')} />
             <Pagination
               currentPage={currentPage}
               totalPages={totalPages}
@@ -300,49 +302,49 @@ export function SuppliersPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Proveedor' : 'Nuevo Proveedor'}
+        title={modal.selectedItem ? t('pages.suppliers.editSupplier') : t('pages.suppliers.newSupplier')}
         footer={
           <div className="flex gap-3 justify-end">
             <Button variant="secondary" onClick={modal.close}>
               Cancelar
             </Button>
             <Button type="submit" form="supplier-form" isLoading={isPending}>
-              {modal.selectedItem ? 'Guardar' : 'Crear'}
+              {modal.selectedItem ? t('common.save') : t('common.create')}
             </Button>
           </div>
         }
       >
         <form id="supplier-form" action={formAction} className="space-y-4">
           <Input
-            label="Nombre *"
+            label={`${t('common.name')} *`}
             name="name"
             defaultValue={modal.formData.name}
             error={state.errors?.name}
             required
           />
           <Input
-            label="Contacto"
+            label={t('pages.suppliers.contact')}
             name="contact_name"
             defaultValue={modal.formData.contact_name}
           />
           <Input
-            label="Teléfono"
+            label={t('common.phone')}
             name="phone"
             defaultValue={modal.formData.phone}
           />
           <Input
-            label="Email"
+            label={t('common.email')}
             name="email"
             type="email"
             defaultValue={modal.formData.email}
           />
           <Input
-            label="Dirección"
+            label={t('common.address')}
             name="address"
             defaultValue={modal.formData.address}
           />
           <Textarea
-            label="Notas"
+            label={t('common.notes')}
             name="notes"
             defaultValue={modal.formData.notes}
           />
@@ -357,7 +359,7 @@ export function SuppliersPage() {
         isOpen={deleteDialog.isOpen}
         onClose={deleteDialog.close}
         onConfirm={handleDelete}
-        title="Eliminar Proveedor"
+        title={t('pages.suppliers.deleteSupplier')}
         description={`¿Estás seguro de eliminar "${deleteDialog.item?.name}"? Esta acción no se puede deshacer.`}
         variant="danger"
       />

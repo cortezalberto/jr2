@@ -1,5 +1,6 @@
 import { useMemo, useCallback, useActionState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, MapPin, ExternalLink } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -46,8 +47,9 @@ const initialFormData: BranchFormData = {
 }
 
 export function BranchesPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Sucursales')
+  useDocumentTitle(t('pages.branches.title'))
 
   const navigate = useNavigate()
   const restaurant = useRestaurantStore(selectRestaurant)
@@ -110,14 +112,14 @@ export function BranchesPage() {
         logDebug('Creating/updating branch', 'BranchesPage', { selectedItem: modal.selectedItem, restaurant, data })
         if (modal.selectedItem) {
           await updateBranchAsync(modal.selectedItem.id, data)
-          toast.success('Sucursal actualizada correctamente')
+          toast.success(t('toasts.updateSuccessFem', { entity: t('pages.branches.title') }))
         } else {
           if (!restaurant) {
-            toast.error('Crea un restaurante primero en la seccion Restaurante')
+            toast.error(t('pages.branches.createRestaurantFirst'))
             return { isSuccess: false, message: 'No hay restaurante' }
           }
           await createBranchAsync({ ...data, restaurant_id: restaurant.id })
-          toast.success('Sucursal creada correctamente')
+          toast.success(t('toasts.createSuccessFem', { entity: t('pages.branches.title') }))
         }
         return { isSuccess: true, message: 'Guardado correctamente' }
       } catch (error) {
@@ -185,7 +187,7 @@ export function BranchesPage() {
 
     try {
       await deleteBranchAsync(deleteDialog.item.id)
-      toast.success('Sucursal eliminada correctamente')
+      toast.success(t('toasts.deleteSuccessFem', { entity: t('pages.branches.title') }))
       deleteDialog.close()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Error desconocido'
@@ -200,7 +202,7 @@ export function BranchesPage() {
     () => [
       {
         key: 'image',
-        label: 'Imagen',
+        label: t('common.image'),
         width: 'w-20',
         render: (item) =>
           item.image ? (
@@ -220,12 +222,12 @@ export function BranchesPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item) => <span className="font-medium">{item.name}</span>,
       },
       {
         key: 'address',
-        label: 'Direccion',
+        label: t('common.address'),
         render: (item) => (
           <div className="flex items-center gap-2 text-sm text-[var(--text-tertiary)]">
             <MapPin className="w-4 h-4" aria-hidden="true" />
@@ -235,7 +237,7 @@ export function BranchesPage() {
       },
       {
         key: 'hours',
-        label: 'Horario',
+        label: t('pages.branches.schedule'),
         width: 'w-32',
         render: (item) => (
           <span className="text-sm text-[var(--text-tertiary)]">
@@ -245,31 +247,31 @@ export function BranchesPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         width: 'w-24',
         render: (item) =>
           item.is_active !== false ? (
             <Badge variant="success">
-              <span className="sr-only">Estado:</span> Activa
+              <span className="sr-only">{t('common.status')}:</span> {t('common.active')}
             </Badge>
           ) : (
             <Badge variant="danger">
-              <span className="sr-only">Estado:</span> Inactiva
+              <span className="sr-only">{t('common.status')}:</span> {t('common.inactive')}
             </Badge>
           ),
       },
       {
         key: 'categories',
-        label: 'Categorias',
+        label: t('pages.categories.title'),
         width: 'w-28',
         render: (item) => {
           const count = getByBranch(item.id).filter((c) => c.name !== HOME_CATEGORY_NAME).length
-          return <span className="text-[var(--text-muted)]">{count} categorias</span>
+          return <span className="text-[var(--text-muted)]">{count} {t('pages.categories.subcategoriesCount')}</span>
         },
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('common.actions'),
         width: 'w-36',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -325,13 +327,13 @@ export function BranchesPage() {
       <meta name="description" content="Administración de sucursales del restaurante" />
 
       <PageContainer
-        title="Sucursales"
-        description="Administra las sucursales del restaurante"
+        title={t('pages.branches.title')}
+        description={t('pages.branches.description')}
         helpContent={helpContent.branches}
         actions={
           canCreate ? (
             <Button onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-              Nueva Sucursal
+              {t('pages.branches.newBranch')}
             </Button>
           ) : undefined
         }
@@ -344,7 +346,7 @@ export function BranchesPage() {
             <Table
               data={paginatedBranches}
               columns={columns}
-              emptyMessage="No hay sucursales. Crea una para comenzar."
+              emptyMessage={t('pages.branches.noBranches')}
               ariaLabel="Lista de sucursales"
             />
           )}
@@ -361,22 +363,22 @@ export function BranchesPage() {
         <Modal
           isOpen={modal.isOpen}
           onClose={modal.close}
-          title={modal.selectedItem ? 'Editar Sucursal' : 'Nueva Sucursal'}
+          title={modal.selectedItem ? t('pages.branches.editBranch') : t('pages.branches.newBranch')}
           size="md"
           footer={
             <>
               <Button variant="ghost" onClick={modal.close}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button type="submit" form="branch-form" isLoading={isPending}>
-                {modal.selectedItem ? 'Guardar' : 'Crear'}
+                {modal.selectedItem ? t('common.save') : t('common.create')}
               </Button>
             </>
           }
         >
           <form id="branch-form" action={formAction} className="space-y-4">
             <Input
-              label="Nombre"
+              label={t('common.name')}
               name="name"
               value={modal.formData.name}
               onChange={(e) =>
@@ -387,7 +389,7 @@ export function BranchesPage() {
             />
 
             <Input
-              label="Direccion"
+              label={t('common.address')}
               name="address"
               value={modal.formData.address}
               onChange={(e) =>
@@ -399,7 +401,7 @@ export function BranchesPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Telefono"
+                label={t('common.phone')}
                 name="phone"
                 value={modal.formData.phone}
                 onChange={(e) =>
@@ -410,7 +412,7 @@ export function BranchesPage() {
               />
 
               <Input
-                label="Email"
+                label={t('common.email')}
                 name="email"
                 type="email"
                 value={modal.formData.email}
@@ -424,14 +426,14 @@ export function BranchesPage() {
 
             <input type="hidden" name="image" value={modal.formData.image} />
             <ImageUpload
-              label="Imagen"
+              label={t('common.image')}
               value={modal.formData.image}
               onChange={(url) => modal.setFormData((prev) => ({ ...prev, image: url }))}
             />
 
             <div className="grid grid-cols-2 gap-4">
               <Input
-                label="Horario de Apertura"
+                label={t('pages.branches.openingTime')}
                 name="opening_time"
                 type="time"
                 value={modal.formData.opening_time}
@@ -442,7 +444,7 @@ export function BranchesPage() {
               />
 
               <Input
-                label="Horario de Cierre"
+                label={t('pages.branches.closingTime')}
                 name="closing_time"
                 type="time"
                 value={modal.formData.closing_time}
@@ -454,7 +456,7 @@ export function BranchesPage() {
             </div>
 
             <Input
-              label="Orden"
+              label={t('common.order')}
               name="order"
               type="number"
               value={modal.formData.order}
@@ -468,7 +470,7 @@ export function BranchesPage() {
             />
 
             <Toggle
-              label="Sucursal activa"
+              label={t('pages.branches.branchActive')}
               name="is_active"
               checked={modal.formData.is_active}
               onChange={(e) =>
@@ -484,9 +486,9 @@ export function BranchesPage() {
           isOpen={deleteDialog.isOpen}
           onClose={deleteDialog.close}
           onConfirm={handleDelete}
-          title="Eliminar Sucursal"
-          message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-          confirmLabel="Eliminar"
+          title={t('pages.branches.deleteBranch')}
+          message={`${t('modals.confirmDelete')} "${deleteDialog.item?.name}"?`}
+          confirmLabel={t('common.delete')}
         >
           {deleteDialog.item && (() => {
             const preview = getBranchPreview(deleteDialog.item.id)

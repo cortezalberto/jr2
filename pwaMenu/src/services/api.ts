@@ -525,6 +525,20 @@ export const menuAPI = {
 }
 
 // =============================================================================
+// Kitchen API - Public endpoints
+// =============================================================================
+
+export const kitchenAPI = {
+  /**
+   * Get estimated wait time for a branch
+   * No auth required - public endpoint
+   */
+  getEstimatedWait(branchId: number): Promise<{ estimated_minutes: number; queue_size: number }> {
+    return request(`/kitchen/estimated-wait?branch_id=${branchId}`)
+  },
+}
+
+// =============================================================================
 // Diner API - Operations requiring table token
 // =============================================================================
 
@@ -763,6 +777,18 @@ export const customerAPI = {
       headers: {
         'X-Device-Id': getDeviceId(),
       },
+    })
+  },
+
+  /**
+   * Submit customer feedback (rating + optional comment)
+   */
+  submitFeedback(data: { rating: number; comment?: string }): Promise<{ id: number; rating: number; comment: string | null; created_at: string }> {
+    return request('/diner/feedback', {
+      method: 'POST',
+      body: JSON.stringify(data),
+      tableAuth: true,
+      skipDedup: true,
     })
   },
 }

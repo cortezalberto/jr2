@@ -4,7 +4,11 @@ import './i18n' // Initialize i18n before app
 import './index.css'
 import App from './App'
 import { initDeviceFingerprint } from './utils/deviceId'
+import { initTheme } from './utils/theme'
 import { logger } from './utils/logger'
+
+// Initialize theme before rendering to avoid flash
+initTheme()
 
 // FASE 1: Initialize device fingerprint for cross-session recognition
 // This runs async in the background and caches the result in localStorage

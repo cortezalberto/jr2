@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useActionState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, Shield } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -32,8 +33,9 @@ const initialFormData: SealFormData = {
 }
 
 export default function SealsPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Sellos')
+  useDocumentTitle(t('pages.seals.title'))
 
   const seals = useSealStore(selectSeals)
   const addSeal = useSealStore((s) => s.addSeal)
@@ -92,15 +94,15 @@ export default function SealsPage() {
       try {
         if (modal.selectedItem) {
           updateSeal(modal.selectedItem.id, data)
-          toast.success('Sello actualizado correctamente')
+          toast.success(t('toasts.updateSuccess', { entity: t('pages.seals.title') }))
         } else {
           addSeal(data)
-          toast.success('Sello creado correctamente')
+          toast.success(t('toasts.createSuccess', { entity: t('pages.seals.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'SealsPage.submitAction')
-        toast.error(`Error al guardar el sello: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.seals.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -152,11 +154,11 @@ export default function SealsPage() {
         )
       }
 
-      toast.success('Sello eliminado correctamente')
+      toast.success(t('toasts.deleteSuccess', { entity: t('pages.seals.title') }))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'SealsPage.handleDelete')
-      toast.error(`Error al eliminar el sello: ${message}`)
+      toast.error(t('toasts.deleteError', { entity: t('pages.seals.title').toLowerCase() }) + `: ${message}`)
     }
   }, [deleteDialog, getProductCount, deleteSeal, removeSealFromProducts])
 
@@ -183,19 +185,19 @@ export default function SealsPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         sortable: true,
       },
       {
         key: 'icon',
-        label: 'Icono',
+        label: t('pages.badges.icon'),
         render: (seal) => (
           <span className="text-2xl">{seal.icon || '-'}</span>
         ),
       },
       {
         key: 'color',
-        label: 'Color',
+        label: t('pages.badges.color'),
         render: (seal) => (
           <div className="flex items-center gap-2">
             <div
@@ -208,10 +210,10 @@ export default function SealsPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         render: (seal) => (
           <UIBadge variant={seal.is_active ? 'success' : 'danger'}>
-            {seal.is_active ? 'Activo' : 'Inactivo'}
+            {seal.is_active ? t('status.active') : t('status.inactive')}
           </UIBadge>
         ),
       },
@@ -262,12 +264,12 @@ export default function SealsPage() {
       <meta name="description" content="Gestión de sellos para características especiales de productos" />
 
       <PageContainer
-        title="Sellos"
+        title={t('pages.seals.title')}
         actions={
           canCreate ? (
             <Button onClick={openCreateModal}>
               <Plus className="w-4 h-4 mr-2" />
-              Nuevo Sello
+              {t('pages.seals.newSeal')}
             </Button>
           ) : undefined
         }
@@ -276,7 +278,7 @@ export default function SealsPage() {
           <Table
             columns={columns}
             data={paginatedSeals}
-            emptyMessage="No hay sellos creados. Crea uno para comenzar."
+            emptyMessage={t('pages.seals.noSeals')}
           />
           <Pagination
             currentPage={currentPage}
@@ -291,22 +293,22 @@ export default function SealsPage() {
         <Modal
           isOpen={modal.isOpen}
           onClose={modal.close}
-          title={modal.selectedItem ? 'Editar Sello' : 'Nuevo Sello'}
+          title={modal.selectedItem ? t('pages.seals.editSeal') : t('pages.seals.newSeal')}
           size="md"
           footer={
             <>
               <Button variant="ghost" onClick={modal.close}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button type="submit" form="seal-form" isLoading={isPending}>
-                {modal.selectedItem ? 'Guardar Cambios' : 'Crear Sello'}
+                {modal.selectedItem ? t('common.save') : t('common.create')}
               </Button>
             </>
           }
         >
           <form id="seal-form" action={formAction} className="space-y-4">
             <Input
-              label="Nombre"
+              label={t('common.name')}
               name="name"
               placeholder="Ej: Vegano, Sin Gluten, Orgánico"
               value={modal.formData.name}
@@ -318,7 +320,7 @@ export default function SealsPage() {
             />
 
             <Input
-              label="Icono (Emoji)"
+              label={t('pages.badges.icon')}
               name="icon"
               placeholder="Ej: 🌱, 🥗, 🍃"
               value={modal.formData.icon}
@@ -330,7 +332,7 @@ export default function SealsPage() {
 
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                Color
+                {t('pages.badges.color')}
               </label>
               <div className="flex items-center gap-3">
                 <input
@@ -353,14 +355,14 @@ export default function SealsPage() {
                 />
               </div>
               <p className="text-xs text-[var(--text-muted)] mt-1">
-                Color del texto y fondo del sello
+                {t('pages.seals.colorHint')}
               </p>
             </div>
 
             {/* Preview */}
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                Vista Previa
+                {t('pages.badges.preview')}
               </label>
               <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-default)]">
                 {modal.formData.name ? (
@@ -376,14 +378,14 @@ export default function SealsPage() {
                   </span>
                 ) : (
                   <span className="text-sm text-[var(--text-muted)]">
-                    Ingresa un nombre para ver la vista previa
+                    {t('pages.badges.previewHint')}
                   </span>
                 )}
               </div>
             </div>
 
             <Toggle
-              label="Activo"
+              label={t('common.active')}
               name="is_active"
               checked={modal.formData.is_active}
               onChange={(e) =>
@@ -398,9 +400,9 @@ export default function SealsPage() {
           isOpen={deleteDialog.isOpen}
           onClose={deleteDialog.close}
           onConfirm={handleDelete}
-          title="Eliminar Sello"
-          message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-          confirmLabel="Eliminar"
+          title={t('pages.seals.deleteSeal')}
+          message={`${t('modals.confirmDelete')} "${deleteDialog.item?.name}"?`}
+          confirmLabel={t('common.delete')}
         />
       </PageContainer>
     </>

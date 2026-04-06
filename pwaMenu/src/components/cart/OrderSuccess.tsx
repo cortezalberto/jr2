@@ -1,19 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { kitchenAPI } from '../../services/api'
 
 interface OrderSuccessProps {
   orderId: string | null
+  branchId?: number
 }
 
 /**
  * PWAM-010: Order success confirmation with animation
- * Shows animated checkmark and order details
+ * Shows animated checkmark and order details + estimated wait time
  */
-export default function OrderSuccess({ orderId }: OrderSuccessProps) {
+export default function OrderSuccess({ orderId, branchId }: OrderSuccessProps) {
   const { t } = useTranslation()
   const displayId = orderId?.slice(-6).toUpperCase() ?? '------'
   const [showCheck, setShowCheck] = useState(false)
   const [showText, setShowText] = useState(false)
+  const [estimatedMinutes, setEstimatedMinutes] = useState<number | null>(null)
 
   // Staggered animation for better visual feedback
   useEffect(() => {
@@ -25,6 +28,22 @@ export default function OrderSuccess({ orderId }: OrderSuccessProps) {
       clearTimeout(textTimer)
     }
   }, [])
+
+  // Fetch estimated wait time
+  useEffect(() => {
+    if (!branchId) return
+    let cancelled = false
+    kitchenAPI.getEstimatedWait(branchId)
+      .then((data) => {
+        if (!cancelled && data.estimated_minutes > 0) {
+          setEstimatedMinutes(data.estimated_minutes)
+        }
+      })
+      .catch(() => {
+        // Silently fail - wait time is optional
+      })
+    return () => { cancelled = true }
+  }, [branchId])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-dark-bg px-4">
@@ -71,6 +90,21 @@ export default function OrderSuccess({ orderId }: OrderSuccessProps) {
           <span className="text-white font-mono font-semibold">#{displayId}</span>
         </div>
       </div>
+
+      {/* Estimated wait time */}
+      {estimatedMinutes !== null && (
+        <div
+          className={`mt-4 transition-all duration-500 ${
+            showText ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 rounded-lg px-4 py-2">
+            <span className="text-orange-400 text-sm">
+              {t('cart.estimatedWait', 'Tiempo estimado')}: ~{estimatedMinutes} min
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Animated dots to indicate processing */}
       <div

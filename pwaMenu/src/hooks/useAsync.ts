@@ -43,10 +43,10 @@ export interface UseAsyncReturn<T> extends AsyncState<T> {
  *     () => submitOrder(),
  *     {
  *       onSuccess: (data) => {
- *         console.log('Order ID:', data.id)
+ *         logger.debug('Order ID:', data.id)
  *         setTimeout(onClose, 2000)
  *       },
- *       onError: (err) => console.error(err)
+ *       onError: (err) => logger.error('Async error', err)
  *     }
  *   )
  * }

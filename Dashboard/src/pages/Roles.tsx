@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useActionState, useDeferredValue } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Edit2, Trash2, Search } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -18,8 +19,9 @@ import type { FormState } from '../types/form'
 
 // REACT 19 IMPROVEMENT: Use useActionState for form handling
 export default function Roles() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Roles')
+  useDocumentTitle(t('pages.roles.title'))
   const roles = useRoleStore(selectRoles)
   const addRole = useRoleStore((state) => state.addRole)
   const updateRole = useRoleStore((state) => state.updateRole)
@@ -59,15 +61,15 @@ export default function Roles() {
       try {
         if (modal.selectedItem) {
           updateRole(modal.selectedItem.id, data)
-          toast.success('Rol actualizado correctamente')
+          toast.success(t('toasts.updateSuccess', { entity: t('pages.roles.title') }))
         } else {
           addRole(data)
-          toast.success('Rol creado correctamente')
+          toast.success(t('toasts.createSuccess', { entity: t('pages.roles.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'RolesPage.submitAction')
-        toast.error(`Error al guardar el rol: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.roles.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -113,7 +115,7 @@ export default function Roles() {
   const handleDelete = (id: string) => {
     if (window.confirm('¿Está seguro de eliminar este rol?')) {
       deleteRole(id)
-      toast.success('Rol eliminado correctamente')
+      toast.success(t('toasts.deleteSuccess', { entity: t('pages.roles.title') }))
     }
   }
 
@@ -125,10 +127,10 @@ export default function Roles() {
           className="text-3xl font-bold text-[var(--text-primary)]"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
-          Roles
+          {t('pages.roles.title')}
         </h1>
         <p className="mt-2 text-[var(--text-tertiary)]">
-          Gestiona los roles del personal del restaurante
+          {t('pages.roles.description')}
         </p>
       </div>
 
@@ -139,7 +141,7 @@ export default function Roles() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input
               type="text"
-              placeholder="Buscar roles..."
+              placeholder={t('common.search') + '...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -147,7 +149,7 @@ export default function Roles() {
           </div>
           {canCreate && (
             <Button onClick={() => handleOpenModal()} leftIcon={<Plus className="w-4 h-4" />}>
-              Nuevo Rol
+              {t('pages.roles.newRole')}
             </Button>
           )}
         </div>
@@ -169,7 +171,7 @@ export default function Roles() {
                   </h3>
                 </div>
                 <Badge variant={role.is_active ? 'success' : 'default'}>
-                  {role.is_active ? 'Activo' : 'Inactivo'}
+                  {role.is_active ? t('status.active') : t('status.inactive')}
                 </Badge>
               </div>
 
@@ -186,7 +188,7 @@ export default function Roles() {
                     leftIcon={<Edit2 className="w-3.5 h-3.5" />}
                     className="flex-1"
                   >
-                    Editar
+                    {t('common.edit')}
                   </Button>
                 )}
                 {canDeleteRole && (
@@ -197,7 +199,7 @@ export default function Roles() {
                     leftIcon={<Trash2 className="w-3.5 h-3.5" />}
                     className="flex-1 text-[var(--danger-border)] hover:text-[var(--danger-text)]"
                   >
-                    Eliminar
+                    {t('common.delete')}
                   </Button>
                 )}
               </div>
@@ -210,7 +212,7 @@ export default function Roles() {
       {filteredRoles.length === 0 && (
         <Card>
           <div className="text-center py-12">
-            <p className="text-[var(--text-muted)] text-lg">No se encontraron roles</p>
+            <p className="text-[var(--text-muted)] text-lg">{t('pages.roles.noRoles')}</p>
             {searchTerm && (
               <p className="text-[var(--text-muted)] text-sm mt-2">
                 Intenta con otro término de búsqueda
@@ -224,12 +226,12 @@ export default function Roles() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Rol' : 'Nuevo Rol'}
+        title={modal.selectedItem ? t('pages.roles.editRole') : t('pages.roles.newRole')}
       >
         <form action={formAction} className="space-y-4">
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-              Nombre *
+              {t('common.name')} *
             </label>
             <Input
               id="name"
@@ -247,7 +249,7 @@ export default function Roles() {
               htmlFor="description"
               className="block text-sm font-medium text-[var(--text-secondary)] mb-2"
             >
-              Descripción *
+              {t('common.description')} *
             </label>
             <textarea
               id="description"
@@ -273,16 +275,16 @@ export default function Roles() {
               className="w-4 h-4 rounded border-[var(--text-muted)] bg-[var(--bg-tertiary)] text-[var(--primary-500)] focus:ring-2 focus:ring-[var(--primary-500)] focus:ring-offset-2 focus:ring-offset-[var(--bg-primary)]"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-[var(--text-secondary)]">
-              Rol activo
+              {t('pages.roles.roleActive')}
             </label>
           </div>
 
           <div className="flex items-center gap-3 pt-4">
             <Button type="submit" className="flex-1" isLoading={isPending}>
-              {modal.selectedItem ? 'Actualizar' : 'Crear'}
+              {modal.selectedItem ? t('common.save') : t('common.create')}
             </Button>
             <Button type="button" variant="ghost" onClick={modal.close} className="flex-1">
-              Cancelar
+              {t('common.cancel')}
             </Button>
           </div>
         </form>

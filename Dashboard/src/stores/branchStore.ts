@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type { Branch, BranchFormData } from '../types'
 import { STORAGE_KEYS, STORE_VERSIONS, BRANCH_DEFAULT_OPENING_TIME, BRANCH_DEFAULT_CLOSING_TIME } from '../utils/constants'
 import { branchAPI, type Branch as APIBranch } from '../services/api'
+import { logWarning } from '../utils/logger'
 
 interface BranchState {
   branches: Branch[]
@@ -103,7 +104,7 @@ export const useBranchStore = create<BranchState>()(
         // Validate branch exists in loaded branches
         const branch = state.branches.find((b) => b.id === id)
         if (!branch) {
-          console.warn(`[branchStore] selectBranch: branch ${id} not found`)
+          logWarning(`selectBranch: branch ${id} not found`, 'branchStore')
           return false
         }
 
@@ -111,7 +112,7 @@ export const useBranchStore = create<BranchState>()(
         if (authorizedBranchIds !== undefined) {
           const numericId = parseInt(id, 10)
           if (!isNaN(numericId) && !authorizedBranchIds.includes(numericId)) {
-            console.warn(`[branchStore] selectBranch: user not authorized for branch ${id}`)
+            logWarning(`selectBranch: user not authorized for branch ${id}`, 'branchStore')
             return false
           }
         }

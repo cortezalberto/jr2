@@ -1,5 +1,6 @@
 import { useMemo, useCallback, useState, useEffect } from 'react'
 import { Package, AlertTriangle, Trash2, Plus, RefreshCw } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { usePagination } from '../hooks/usePagination'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -56,10 +57,10 @@ interface FoodCostItem {
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
 
 function getStockStatus(item: StockItem): { label: string; variant: 'success' | 'warning' | 'danger' } {
-  if (item.current_qty <= 0) return { label: 'SIN STOCK', variant: 'danger' }
-  if (item.current_qty < item.min_level) return { label: 'BAJO', variant: 'warning' }
-  if (item.current_qty < item.min_level * 1.5) return { label: 'ATENCIÓN', variant: 'warning' }
-  return { label: 'OK', variant: 'success' }
+  if (item.current_qty <= 0) return { label: t('pages.inventory.outOfStock'), variant: 'danger' }
+  if (item.current_qty < item.min_level) return { label: t('pages.inventory.lowStock'), variant: 'warning' }
+  if (item.current_qty < item.min_level * 1.5) return { label: t('pages.inventory.attention'), variant: 'warning' }
+  return { label: t('pages.inventory.ok'), variant: 'success' }
 }
 
 function formatPrice(cents: number): string {
@@ -67,7 +68,8 @@ function formatPrice(cents: number): string {
 }
 
 export function InventoryPage() {
-  useDocumentTitle('Inventario')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.inventory.title'))
 
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
 
@@ -143,7 +145,7 @@ export function InventoryPage() {
         headers: { Authorization: `Bearer ${localStorage.getItem('access_token') || ''}` },
       })
       if (res.ok) {
-        toast.success('Costos recalculados')
+        toast.success(t('pages.inventory.recalculateCosts'))
         fetchFoodCost()
       }
     } catch (error) {
@@ -176,7 +178,7 @@ export function InventoryPage() {
     () => [
       {
         key: 'ingredient_id',
-        label: 'Ingrediente',
+        label: t('pages.inventory.ingredient'),
         render: (item: StockItem) => (
           <span className="font-medium text-[var(--text-primary)]">
             {item.ingredient_name || `#${item.ingredient_id}`}
@@ -185,7 +187,7 @@ export function InventoryPage() {
       },
       {
         key: 'current_qty',
-        label: 'Cantidad',
+        label: t('pages.inventory.currentQty'),
         render: (item: StockItem) => (
           <span className="text-[var(--text-primary)]">
             {item.current_qty.toFixed(2)} {item.unit}
@@ -194,7 +196,7 @@ export function InventoryPage() {
       },
       {
         key: 'min_level',
-        label: 'Nivel Mínimo',
+        label: t('pages.inventory.minLevel'),
         render: (item: StockItem) => (
           <span className="text-[var(--text-secondary)]">
             {item.min_level.toFixed(2)} {item.unit}
@@ -203,7 +205,7 @@ export function InventoryPage() {
       },
       {
         key: 'cost_per_unit_cents',
-        label: 'Costo/Unidad',
+        label: t('pages.inventory.costPerUnit'),
         render: (item: StockItem) => (
           <span className="text-[var(--text-secondary)]">
             {formatPrice(item.cost_per_unit_cents)}
@@ -212,14 +214,14 @@ export function InventoryPage() {
       },
       {
         key: 'location',
-        label: 'Ubicación',
+        label: t('pages.inventory.location'),
         render: (item: StockItem) => (
           <span className="text-[var(--text-secondary)]">{item.location || '-'}</span>
         ),
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         render: (item: StockItem) => {
           const status = getStockStatus(item)
           return <Badge variant={status.variant}>{status.label}</Badge>
@@ -231,11 +233,11 @@ export function InventoryPage() {
 
   if (!selectedBranchId) {
     return (
-      <PageContainer title="Inventario" description="Gestión de stock e ingredientes">
+      <PageContainer title={t('pages.inventory.title')} description={t('pages.inventory.selectBranchDesc')}>
         <Card>
           <div className="text-center py-12 text-[var(--text-muted)]">
             <Package className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-            <p className="text-lg">Seleccioná una sucursal desde el Dashboard</p>
+            <p className="text-lg">{t('pages.inventory.selectBranchFromDashboard')}</p>
           </div>
         </Card>
       </PageContainer>
@@ -267,9 +269,9 @@ export function InventoryPage() {
                 : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'
             }`}
           >
-            {tab === 'stock' && 'Stock'}
-            {tab === 'alerts' && `Alertas (${alerts.length})`}
-            {tab === 'cost' && 'Costo Food'}
+            {tab === 'stock' && t('pages.inventory.stockTab')}
+            {tab === 'alerts' && `${t('pages.inventory.alertsTab')} (${alerts.length})`}
+            {tab === 'cost' && t('pages.inventory.costTab')}
           </button>
         ))}
       </div>
@@ -280,19 +282,19 @@ export function InventoryPage() {
           {loading ? (
             <div className="flex items-center justify-center py-12" role="status">
               <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-              <span className="sr-only">Cargando inventario</span>
+              <span className="sr-only">{t('pages.inventory.loadingInventory')}</span>
             </div>
           ) : sortedStock.length === 0 ? (
             <div className="text-center py-12 text-[var(--text-muted)]">
               <Package className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-              <p>No hay items de stock registrados</p>
+              <p>{t('pages.inventory.noStockItems')}</p>
             </div>
           ) : (
             <>
               <Table
                 data={paginatedItems}
                 columns={stockColumns}
-                ariaLabel="Tabla de inventario"
+                ariaLabel={t('pages.inventory.inventoryTable')}
               />
               <Pagination
                 currentPage={currentPage}
@@ -312,7 +314,7 @@ export function InventoryPage() {
           {alerts.length === 0 ? (
             <div className="text-center py-12 text-[var(--text-muted)]">
               <AlertTriangle className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-              <p>No hay alertas activas</p>
+              <p>{t('pages.inventory.noActiveAlerts')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -334,7 +336,7 @@ export function InventoryPage() {
                     />
                     <div>
                       <p className="text-sm font-medium text-[var(--text-primary)]">
-                        {alert.alert_type === 'OUT_OF_STOCK' ? 'Sin Stock' : 'Stock Bajo'}
+                        {alert.alert_type === 'OUT_OF_STOCK' ? t('pages.inventory.outOfStockAlert') : t('pages.inventory.lowStockAlert')}
                       </p>
                       <p className="text-xs text-[var(--text-muted)]">
                         Stock Item #{alert.stock_item_id} — Actual: {alert.current_qty} / Mínimo: {alert.threshold_qty}
@@ -362,19 +364,19 @@ export function InventoryPage() {
           </div>
           {foodCost.length === 0 ? (
             <div className="text-center py-12 text-[var(--text-muted)]">
-              <p>No hay datos de costo disponibles</p>
-              <p className="text-sm mt-2">Las recetas deben estar vinculadas a productos para calcular costos</p>
+              <p>{t('pages.inventory.noCostData')}</p>
+              <p className="text-sm mt-2">{t('pages.inventory.recipesNeeded')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Reporte de food cost">
+              <table className="w-full text-sm" aria-label={t('pages.inventory.foodCostReport')}>
                 <thead>
                   <tr className="border-b border-[var(--border-default)]">
-                    <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Producto</th>
-                    <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">Receta</th>
-                    <th className="text-right py-3 px-4 text-[var(--text-secondary)] font-medium">Costo</th>
-                    <th className="text-right py-3 px-4 text-[var(--text-secondary)] font-medium">Precio Venta</th>
-                    <th className="text-right py-3 px-4 text-[var(--text-secondary)] font-medium">Food Cost %</th>
+                    <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">{t('pages.inventory.productCol')}</th>
+                    <th className="text-left py-3 px-4 text-[var(--text-secondary)] font-medium">{t('pages.inventory.recipeCol')}</th>
+                    <th className="text-right py-3 px-4 text-[var(--text-secondary)] font-medium">{t('pages.inventory.costCol')}</th>
+                    <th className="text-right py-3 px-4 text-[var(--text-secondary)] font-medium">{t('pages.inventory.sellingPriceCol')}</th>
+                    <th className="text-right py-3 px-4 text-[var(--text-secondary)] font-medium">{t('pages.inventory.foodCostPct')}</th>
                   </tr>
                 </thead>
                 <tbody>

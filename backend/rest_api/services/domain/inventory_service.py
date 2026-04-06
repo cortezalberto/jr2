@@ -28,6 +28,7 @@ from shared.utils.admin_schemas import StockItemOutput, SupplierOutput, Purchase
 from shared.infrastructure.db import safe_commit
 from shared.config.logging import get_logger
 from shared.utils.exceptions import NotFoundError, ValidationError
+from rest_api.services.domain.audit_service import AuditService
 
 logger = get_logger(__name__)
 
@@ -107,6 +108,24 @@ class InventoryService(BranchScopedService[StockItem, StockItemOutput]):
         )
         self._db.add(movement)
         safe_commit(self._db)
+
+        # Audit log for stock adjustments
+        audit = AuditService(self._db)
+        audit.log(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=None,
+            action="STOCK_ADJUSTMENT",
+            entity_type="stock_item",
+            entity_id=stock_item_id,
+            old_values={"qty": qty_before},
+            new_values={
+                "qty": qty_after,
+                "movement_type": movement_type,
+                "qty_change": qty_change,
+                "reason": reason,
+            },
+        )
 
         # Check for alerts after movement
         self._check_single_alert(stock_item, tenant_id)
@@ -204,6 +223,67 @@ class InventoryService(BranchScopedService[StockItem, StockItemOutput]):
                     )
 
         return movements
+
+    def check_stock_for_product(
+        self,
+        branch_id: int,
+        tenant_id: int,
+        product_id: int,
+        required_qty: int,
+    ) -> list[str]:
+        """
+        Check if sufficient stock exists for a product based on its recipe.
+
+        Returns a list of ingredient names with insufficient stock.
+        If the product has no recipe or no tracked ingredients, returns empty list
+        (stock is NOT tracked for that product, so no validation needed).
+        """
+        from rest_api.models.ingredient import Ingredient
+
+        recipe = self._db.scalar(
+            select(Recipe).where(
+                Recipe.product_id == product_id,
+                Recipe.tenant_id == tenant_id,
+                Recipe.is_active.is_(True),
+            )
+        )
+        if not recipe or not recipe.ingredients:
+            return []
+
+        try:
+            recipe_ingredients = json.loads(recipe.ingredients)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+        insufficient = []
+        for ing in recipe_ingredients:
+            ing_name = ing.get("name", "")
+            ing_qty = float(ing.get("quantity", 0)) * required_qty
+
+            if ing_qty <= 0:
+                continue
+
+            ingredient = self._db.scalar(
+                select(Ingredient).where(
+                    Ingredient.name == ing_name,
+                    Ingredient.tenant_id == tenant_id,
+                    Ingredient.is_active.is_(True),
+                )
+            )
+            if not ingredient:
+                continue
+
+            stock_item = self._db.scalar(
+                select(StockItem).where(
+                    StockItem.branch_id == branch_id,
+                    StockItem.ingredient_id == ingredient.id,
+                    StockItem.is_active.is_(True),
+                )
+            )
+            if stock_item is not None and stock_item.current_qty < ing_qty:
+                insufficient.append(ing_name)
+
+        return insufficient
 
     def check_alerts(self, branch_id: int, tenant_id: int) -> list[StockAlert]:
         """Check all stock items for low-stock conditions and generate alerts."""

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from sqlalchemy import select, func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload, joinedload
 
 from shared.config.logging import get_logger
 from shared.infrastructure.db import safe_commit
@@ -28,6 +28,7 @@ from shared.utils.schemas import (
     RoundOutput,
     RoundItemOutput,
 )
+from rest_api.services.domain.audit_service import AuditService
 
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
@@ -52,6 +53,26 @@ class ProductNotAvailableError(Exception):
         super().__init__(f"Product {product_id} not available")
 
 
+class RoundItemNotFoundError(Exception):
+    """Round item not found."""
+    pass
+
+
+class RoundItemNotVoidableError(Exception):
+    """Round item cannot be voided in its current state."""
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(reason)
+
+
+class InsufficientStockError(Exception):
+    """One or more products have insufficient stock."""
+    def __init__(self, unavailable_items: list[str]):
+        self.unavailable_items = unavailable_items
+        items_str = ", ".join(unavailable_items)
+        super().__init__(f"Insufficient stock for: {items_str}")
+
+
 class DuplicateRoundError(Exception):
     """Duplicate round detected (idempotency)."""
     def __init__(self, round_id: int, round_number: int, status: str):
@@ -71,6 +92,7 @@ class RoundService:
     
     def __init__(self, db: Session):
         self._db = db
+        self._audit = AuditService(db)
     
     def check_idempotency(
         self,
@@ -137,22 +159,13 @@ class RoundService:
             SessionNotActiveError: If session is not active
             ProductNotAvailableError: If any product is not available
         """
-        # Check idempotency
-        existing = self.check_idempotency(session_id, idempotency_key)
-        if existing:
-            raise DuplicateRoundError(
-                existing.id,
-                existing.round_number,
-                existing.status,
-            )
-        
         # Validate session
         self.validate_session(session_id)
-        
+
         # Get sector for notifications
         sector_id = self.get_table_sector_id(table_id)
-        
-        # Lock session to prevent race condition
+
+        # Lock session FIRST to prevent race condition on concurrent submissions
         locked_session = self._db.scalar(
             select(TableSession)
             .where(TableSession.id == session_id)
@@ -160,6 +173,15 @@ class RoundService:
         )
         if not locked_session:
             raise SessionNotActiveError("Session not found")
+
+        # Check idempotency AFTER acquiring lock to prevent duplicate rounds
+        existing = self.check_idempotency(session_id, idempotency_key)
+        if existing:
+            raise DuplicateRoundError(
+                existing.id,
+                existing.round_number,
+                existing.status,
+            )
         
         # Get next round number
         max_round = self._db.scalar(
@@ -190,7 +212,26 @@ class RoundService:
         for item in request.items:
             if item.product_id not in product_lookup:
                 raise ProductNotAvailableError(item.product_id)
-        
+
+        # Stock validation: check ingredient availability for tracked products
+        from rest_api.services.domain.inventory_service import InventoryService
+        inventory_service = InventoryService(self._db)
+        unavailable_items: list[str] = []
+        for item in request.items:
+            product, _bp = product_lookup[item.product_id]
+            insufficient = inventory_service.check_stock_for_product(
+                branch_id=branch_id,
+                tenant_id=tenant_id,
+                product_id=item.product_id,
+                required_qty=item.qty,
+            )
+            if insufficient:
+                unavailable_items.append(
+                    f"{product.name} (falta: {', '.join(insufficient)})"
+                )
+        if unavailable_items:
+            raise InsufficientStockError(unavailable_items)
+
         # Create round
         new_round = Round(
             tenant_id=tenant_id,
@@ -231,13 +272,28 @@ class RoundService:
         safe_commit(self._db)
         self._db.refresh(new_round)
         
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=None,
+            user_email=None,
+            action="SUBMIT",
+            entity_type="round",
+            entity_id=new_round.id,
+            new_values={
+                "round_number": next_round_number,
+                "session_id": session_id,
+                "items_count": len(round_items),
+                "status": "PENDING",
+            },
+        )
+
         logger.info(
             "Round submitted",
             round_id=new_round.id,
             session_id=session_id,
             items_count=len(round_items),
         )
-        
+
         return new_round, sector_id
     
     def get_session_rounds(
@@ -350,7 +406,7 @@ class RoundService:
     def cancel_round(self, round_id: int, user_id: int) -> Round:
         """
         Cancel a round.
-        
+
         Only PENDING or CONFIRMED rounds can be canceled.
         """
         round_obj = self._db.scalar(
@@ -358,15 +414,114 @@ class RoundService:
         )
         if not round_obj:
             raise RoundNotFoundError(f"Round {round_id} not found")
-        
+
         if round_obj.status not in ("PENDING", "CONFIRMED"):
             raise ValueError(f"Cannot cancel round with status {round_obj.status}")
-        
+
         round_obj.status = "CANCELED"
         round_obj.canceled_at = datetime.now(timezone.utc)
-        
+
         safe_commit(self._db)
-        
+
+        self._audit.log(
+            tenant_id=round_obj.tenant_id,
+            user_id=user_id,
+            user_email=None,
+            action="CANCEL",
+            entity_type="round",
+            entity_id=round_id,
+            old_values={"status": "PENDING"},
+            new_values={"status": "CANCELED"},
+        )
+
         logger.info("Round canceled", round_id=round_id, user_id=user_id)
-        
+
         return round_obj
+
+    def void_item(
+        self,
+        tenant_id: int,
+        round_item_id: int,
+        reason: str,
+        user_id: int,
+    ) -> tuple[RoundItem, Round, bool]:
+        """
+        Void a single item from a submitted round.
+
+        Allowed states: SUBMITTED, IN_KITCHEN, READY (not SERVED, not already voided).
+        If ALL items in the round become voided, the round is auto-canceled.
+
+        Returns (voided_item, round, round_canceled) tuple.
+        """
+        # Fetch the item with its round and table info
+        item = self._db.scalar(
+            select(RoundItem)
+            .options(
+                joinedload(RoundItem.round)
+                .joinedload(Round.session)
+                .joinedload(TableSession.table),
+            )
+            .where(
+                RoundItem.id == round_item_id,
+                RoundItem.tenant_id == tenant_id,
+            )
+        )
+
+        if not item:
+            raise RoundItemNotFoundError(f"Round item {round_item_id} not found")
+
+        if item.is_voided:
+            raise RoundItemNotVoidableError("Item already voided")
+
+        round_obj = item.round
+        voidable_statuses = ("SUBMITTED", "IN_KITCHEN", "READY")
+
+        if round_obj.status not in voidable_statuses:
+            raise RoundItemNotVoidableError(
+                f"Cannot void item in round with status {round_obj.status}. "
+                f"Only allowed for: {', '.join(voidable_statuses)}"
+            )
+
+        # Mark item as voided
+        now = datetime.now(timezone.utc)
+        item.is_voided = True
+        item.void_reason = reason
+        item.voided_by_user_id = user_id
+        item.voided_at = now
+
+        # Check if ALL items in the round are now voided
+        all_items = self._db.execute(
+            select(RoundItem).where(RoundItem.round_id == round_obj.id)
+        ).scalars().all()
+
+        round_canceled = all(i.is_voided for i in all_items)
+
+        if round_canceled:
+            round_obj.status = "CANCELED"
+
+        safe_commit(self._db)
+
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=None,
+            action="VOID",
+            entity_type="round_item",
+            entity_id=round_item_id,
+            new_values={
+                "reason": reason,
+                "round_id": round_obj.id,
+                "round_canceled": round_canceled,
+            },
+        )
+
+        logger.info(
+            "Round item voided",
+            round_item_id=round_item_id,
+            round_id=round_obj.id,
+            reason=reason,
+            user_id=user_id,
+            round_canceled=round_canceled,
+        )
+
+        return item, round_obj, round_canceled

@@ -16,6 +16,9 @@ import { useIngredientStore } from './ingredientStore'
 import { useRecipeStore } from './recipeStore'
 import { useWaiterAssignmentStore } from './waiterAssignmentStore'
 import { useExclusionStore } from './exclusionStore'
+import { useCustomizationStore } from './customizationStore'
+import { useDeliveryStore } from './deliveryStore'
+import { useReservationStore } from './reservationStore'
 
 /**
  * Resets all data stores to their initial state
@@ -40,6 +43,9 @@ export function resetAllStores(): void {
   useRecipeStore.setState({ recipes: [], isLoading: false, error: null })
   useWaiterAssignmentStore.setState({ assignments: [], isLoading: false, error: null })
   useExclusionStore.setState({ exclusions: [], isLoading: false, error: null })
+  useCustomizationStore.setState({ options: [], isLoading: false, error: null })
+  useDeliveryStore.setState({ orders: [], isLoading: false, error: null })
+  useReservationStore.setState({ reservations: [], isLoading: false, error: null })
 
   // Clear persisted storage for all stores
   localStorage.removeItem('dashboard-branches')

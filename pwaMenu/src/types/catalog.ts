@@ -88,6 +88,7 @@ export interface Product {
   popular: boolean
   badge?: string
   allergen_ids?: string[]          // Optional, defaults to []
+  is_available?: boolean           // false = product is sold out (Agotado)
   is_active?: boolean
   stock?: number
   created_at?: string

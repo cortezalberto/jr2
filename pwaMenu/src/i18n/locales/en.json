@@ -89,7 +89,9 @@
     "add": "Add",
     "adding": "Adding...",
     "added": "Added",
-    "addedToCart": "{{quantity}} {{product}} added to cart"
+    "addedToCart": "{{quantity}} {{product}} added to cart",
+    "soldOut": "Sold out",
+    "unavailableMessage": "This product is not available at the moment"
   },
   "bottomNav": {
     "mainNav": "Main navigation",
@@ -102,7 +104,8 @@
     "round_plural": "rounds",
     "noOrders": "No orders",
     "askForBill": "Ask for bill",
-    "aiAssistant": "Ask AI about the menu"
+    "aiAssistant": "Ask AI about the menu",
+    "estimatedWait": "Estimated wait"
   },
   "orderSuccess": {
     "orderSent": "Order sent!",
@@ -122,6 +125,7 @@
     "totalConsumed": "Total consumed",
     "itemsInRounds": "{{items}} items in {{rounds}} {{roundWord}}",
     "close": "Close history",
+    "reorder": "Reorder",
     "status": {
       "submitted": "Submitted",
       "confirmed": "Confirmed",
@@ -144,7 +148,12 @@
   "menu": {
     "title": "Menu",
     "selectLanguage": "Select language",
-    "languageHelp": "You can change the language at any time"
+    "languageHelp": "You can change the language at any time",
+    "appearance": "Appearance",
+    "lightMode": "Light Mode",
+    "darkMode": "Dark Mode",
+    "switchToLight": "Switch to light mode",
+    "switchToDark": "Switch to dark mode"
   },
   "closeTable": {
     "title": "Request bill",
@@ -497,5 +506,17 @@
     "pendingNote": "You will receive a notification when the payment is confirmed",
     "retry": "Try again",
     "cancel": "Cancel and go back"
+  },
+  "feedback": {
+    "title": "Your opinion matters",
+    "selectRating": "Select a rating",
+    "stars": "stars",
+    "commentPlaceholder": "Optional comment...",
+    "submit": "Submit feedback",
+    "sending": "Sending...",
+    "thanks": "Thanks for your feedback!",
+    "close": "Close",
+    "error": "Could not send. Try again.",
+    "leaveReview": "Leave a review"
   }
 }

@@ -29,6 +29,7 @@ from shared.security.password import hash_password
 from shared.utils.exceptions import NotFoundError, ValidationError, ForbiddenError
 from shared.config.logging import get_logger
 from shared.config.constants import Roles
+from rest_api.services.domain.audit_service import AuditService
 
 logger = get_logger(__name__)
 
@@ -48,6 +49,7 @@ class StaffService:
     def __init__(self, db: Session):
         self._db = db
         self._entity_name = "Empleado"
+        self._audit = AuditService(db)
 
     # =========================================================================
     # Query Methods
@@ -218,6 +220,21 @@ class StaffService:
         self._db.commit()
         self._db.refresh(staff)
 
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=user_email,
+            action="CREATE",
+            entity_type="staff",
+            entity_id=staff.id,
+            new_values={
+                "email": staff.email,
+                "first_name": staff.first_name,
+                "last_name": staff.last_name,
+                "branch_roles": branch_roles_data,
+            },
+        )
+
         logger.info(
             "Staff created",
             staff_id=staff.id,
@@ -303,6 +320,19 @@ class StaffService:
         self._db.commit()
         self._db.refresh(staff)
 
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=user_email,
+            action="UPDATE",
+            entity_type="staff",
+            entity_id=staff_id,
+            new_values={
+                "updated_fields": list(data.keys()),
+                "roles_changed": branch_roles_data is not None,
+            },
+        )
+
         logger.info(
             "Staff updated",
             staff_id=staff_id,
@@ -344,6 +374,19 @@ class StaffService:
             entity_id=staff_id,
             entity_name=staff_name,
             actor_user_id=user_id,
+        )
+
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            user_email=user_email,
+            action="DELETE",
+            entity_type="staff",
+            entity_id=staff_id,
+            old_values={
+                "email": staff.email,
+                "name": staff_name,
+            },
         )
 
         logger.info(

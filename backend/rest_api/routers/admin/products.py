@@ -22,7 +22,9 @@ from rest_api.routers.admin._base import (
     filter_by_accessible_branches,
 )
 from rest_api.services.domain import ProductService
+from shared.config.logging import get_logger
 
+logger = get_logger("admin-products")
 
 router = APIRouter(tags=["admin-products"])
 
@@ -225,9 +227,9 @@ async def delete_product(
                     "tenant_id": user["tenant_id"],
                 },
             )
-        except Exception:
+        except Exception as e:
             # Don't fail deletion if audit log fails
-            pass
+            logger.warning("Audit log failed for product deletion", product_id=product_id, error=str(e))
 
     background_tasks.add_task(_log_product_deletion)
 

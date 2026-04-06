@@ -8,10 +8,12 @@ from fastapi import APIRouter
 from rest_api.routers.admin._base import (
     Depends, HTTPException, Session, select, func,
     get_db, current_user, Round, RoundItem, Product, Table, TableSession,
-    Payment,
+    Payment, User, UserBranchRole,
 )
+from rest_api.models import Tip, ServiceCall
 from shared.utils.admin_schemas import (
     ReportsSummaryOutput, DailySalesOutput, TopProductOutput, HourlyOrdersOutput,
+    WaiterPerformanceOutput,
 )
 
 
@@ -224,3 +226,169 @@ def get_orders_by_hour(
         )
         for row in hourly_stats
     ]
+
+
+@router.get("/reports/waiter-performance", response_model=list[WaiterPerformanceOutput])
+def get_waiter_performance(
+    branch_id: int | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: dict = Depends(current_user),
+) -> list[WaiterPerformanceOutput]:
+    """
+    Get per-waiter performance analytics.
+
+    Aggregates tables served, rounds processed, revenue, tips,
+    service time, and service call response times.
+    """
+    user_branch_ids = user.get("branch_ids", [])
+    if branch_id and branch_id not in user_branch_ids:
+        raise HTTPException(status_code=403, detail="No access to this branch")
+    branch_ids = [branch_id] if branch_id else user_branch_ids
+    tenant_id = user["tenant_id"]
+
+    # Date range
+    if date_from:
+        start_date = datetime.fromisoformat(date_from).replace(tzinfo=timezone.utc)
+    else:
+        start_date = datetime.now(timezone.utc) - timedelta(days=days)
+
+    if date_to:
+        end_date = datetime.fromisoformat(date_to).replace(tzinfo=timezone.utc)
+    else:
+        end_date = datetime.now(timezone.utc)
+
+    # Get all waiters for the requested branches
+    waiter_rows = db.execute(
+        select(User.id, User.first_name, User.last_name)
+        .join(UserBranchRole, User.id == UserBranchRole.user_id)
+        .where(
+            UserBranchRole.role == "WAITER",
+            UserBranchRole.branch_id.in_(branch_ids),
+            UserBranchRole.tenant_id == tenant_id,
+            User.is_active.is_(True),
+        )
+        .distinct()
+    ).all()
+
+    results: list[WaiterPerformanceOutput] = []
+
+    for waiter_id, first_name, last_name in waiter_rows:
+        waiter_name = f"{first_name or ''} {last_name or ''}".strip() or f"User #{waiter_id}"
+
+        # Tables served (sessions where this waiter was assigned)
+        total_tables = db.scalar(
+            select(func.count(TableSession.id))
+            .where(
+                TableSession.assigned_waiter_id == waiter_id,
+                TableSession.branch_id.in_(branch_ids),
+                TableSession.opened_at >= start_date,
+                TableSession.opened_at <= end_date,
+            )
+        ) or 0
+
+        # Rounds processed (confirmed or submitted by this waiter)
+        total_rounds = db.scalar(
+            select(func.count(Round.id))
+            .where(
+                Round.branch_id.in_(branch_ids),
+                Round.submitted_at >= start_date,
+                Round.submitted_at <= end_date,
+                Round.status.in_(["SUBMITTED", "IN_KITCHEN", "READY", "SERVED"]),
+                (Round.confirmed_by_user_id == waiter_id)
+                | (Round.submitted_by_waiter_id == waiter_id),
+            )
+        ) or 0
+
+        # Revenue from rounds handled by this waiter
+        total_revenue = db.scalar(
+            select(func.sum(RoundItem.unit_price_cents * RoundItem.qty))
+            .join(Round, RoundItem.round_id == Round.id)
+            .where(
+                Round.branch_id.in_(branch_ids),
+                Round.submitted_at >= start_date,
+                Round.submitted_at <= end_date,
+                Round.status.in_(["SUBMITTED", "IN_KITCHEN", "READY", "SERVED"]),
+                (Round.confirmed_by_user_id == waiter_id)
+                | (Round.submitted_by_waiter_id == waiter_id),
+            )
+        ) or 0
+
+        # Tips for this waiter
+        total_tips = db.scalar(
+            select(func.sum(Tip.amount_cents))
+            .where(
+                Tip.waiter_id == waiter_id,
+                Tip.branch_id.in_(branch_ids),
+                Tip.created_at >= start_date,
+                Tip.created_at <= end_date,
+                Tip.is_active.is_(True),
+            )
+        ) or 0
+
+        # Avg service time (minutes) from session open to close
+        avg_service_time_result = db.execute(
+            select(
+                func.avg(
+                    func.extract("epoch", TableSession.closed_at)
+                    - func.extract("epoch", TableSession.opened_at)
+                )
+            )
+            .where(
+                TableSession.assigned_waiter_id == waiter_id,
+                TableSession.branch_id.in_(branch_ids),
+                TableSession.opened_at >= start_date,
+                TableSession.opened_at <= end_date,
+                TableSession.closed_at.isnot(None),
+            )
+        ).scalar()
+        avg_service_minutes = round((avg_service_time_result or 0) / 60, 1)
+
+        # Service calls acknowledged by this waiter
+        total_service_calls = db.scalar(
+            select(func.count(ServiceCall.id))
+            .where(
+                ServiceCall.acked_by_user_id == waiter_id,
+                ServiceCall.branch_id.in_(branch_ids),
+                ServiceCall.created_at >= start_date,
+                ServiceCall.created_at <= end_date,
+            )
+        ) or 0
+
+        # Avg response time (seconds) for service calls
+        avg_response_result = db.execute(
+            select(
+                func.avg(
+                    func.extract("epoch", ServiceCall.acked_at)
+                    - func.extract("epoch", ServiceCall.created_at)
+                )
+            )
+            .where(
+                ServiceCall.acked_by_user_id == waiter_id,
+                ServiceCall.branch_id.in_(branch_ids),
+                ServiceCall.created_at >= start_date,
+                ServiceCall.created_at <= end_date,
+                ServiceCall.acked_at.isnot(None),
+            )
+        ).scalar()
+        avg_response_seconds = round(avg_response_result or 0, 1)
+
+        results.append(
+            WaiterPerformanceOutput(
+                user_id=waiter_id,
+                user_name=waiter_name,
+                total_tables_served=total_tables,
+                total_rounds_processed=total_rounds,
+                total_revenue_cents=total_revenue,
+                total_tips_cents=total_tips,
+                avg_service_time_minutes=avg_service_minutes,
+                total_service_calls=total_service_calls,
+                avg_response_time_seconds=avg_response_seconds,
+            )
+        )
+
+    # Sort by revenue descending
+    results.sort(key=lambda w: w.total_revenue_cents, reverse=True)
+    return results

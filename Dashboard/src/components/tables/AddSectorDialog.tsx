@@ -38,7 +38,8 @@ export function AddSectorDialog({
   branchId,
   onSuccess,
 }: AddSectorDialogProps) {
-  const { createSector, isLoading } = useSectorStore()
+  const createSector = useSectorStore((s) => s.createSector)
+  const isLoading = useSectorStore((s) => s.isLoading)
 
   const [name, setName] = useState('')
   const [prefix, setPrefix] = useState('')

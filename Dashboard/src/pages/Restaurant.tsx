@@ -1,4 +1,5 @@
 import { useState, useCallback, useActionState, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Building2 } from 'lucide-react'
 import { PageContainer } from '../components/layout'
 import { Card, CardHeader, Button, Input, Textarea, ImageUpload } from '../components/ui'
@@ -18,8 +19,9 @@ type FormState = {
 }
 
 export function RestaurantPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Restaurante')
+  useDocumentTitle(t('pages.restaurant.title'))
 
   // Use selectors to avoid unnecessary re-renders
   const restaurant = useRestaurantStore(selectRestaurant)
@@ -65,15 +67,15 @@ export function RestaurantPage() {
       try {
         if (restaurant) {
           updateRestaurant(data)
-          toast.success('Restaurante actualizado correctamente')
+          toast.success(t('toasts.updateSuccess', { entity: t('pages.restaurant.title') }))
         } else {
           createRestaurant(data)
-          toast.success('Restaurante creado correctamente')
+          toast.success(t('toasts.createSuccess', { entity: t('pages.restaurant.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'RestaurantPage.submitAction')
-        toast.error(`Error al guardar el restaurante: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.restaurant.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -107,20 +109,20 @@ export function RestaurantPage() {
 
   return (
     <PageContainer
-      title="Restaurante"
-      description="Configura la informacion de tu restaurante"
+      title={t('pages.restaurant.title')}
+      description={t('pages.restaurant.description')}
       helpContent={helpContent.restaurant}
     >
       <form action={formAction} className="max-w-4xl">
         <Card className="mb-6">
           <CardHeader
-            title="Informacion General"
-            description="Datos basicos del restaurante"
+            title={t('pages.restaurant.generalInfo')}
+            description={t('pages.restaurant.generalInfoDesc')}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
-              label="Nombre del Restaurante"
+              label={t('pages.restaurant.restaurantName')}
               name="name"
               value={formData.name}
               onChange={handleChange}
@@ -132,7 +134,7 @@ export function RestaurantPage() {
             <div className="flex gap-2">
               <div className="flex-1">
                 <Input
-                  label="Slug (URL)"
+                  label={t('pages.restaurant.slug')}
                   name="slug"
                   value={formData.slug}
                   onChange={handleChange}
@@ -147,13 +149,13 @@ export function RestaurantPage() {
                 className="mt-7"
                 onClick={generateSlug}
               >
-                Generar
+                {t('pages.restaurant.generate')}
               </Button>
             </div>
 
             <div className="md:col-span-2">
               <Textarea
-                label="Descripcion"
+                label={t('common.description')}
                 name="description"
                 value={formData.description}
                 onChange={handleChange}
@@ -176,19 +178,19 @@ export function RestaurantPage() {
 
         <Card className="mb-6">
           <CardHeader
-            title="Imagenes"
-            description="Logo y banner del restaurante"
+            title={t('pages.restaurant.images')}
+            description={t('pages.restaurant.imagesDesc')}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <ImageUpload
-              label="Logo"
+              label={t('pages.restaurant.logo')}
               value={formData.logo}
               onChange={(url) => setFormData((prev) => ({ ...prev, logo: url }))}
             />
 
             <ImageUpload
-              label="Banner"
+              label={t('pages.restaurant.banner')}
               value={formData.banner}
               onChange={(url) => setFormData((prev) => ({ ...prev, banner: url }))}
             />
@@ -197,13 +199,13 @@ export function RestaurantPage() {
 
         <Card className="mb-6">
           <CardHeader
-            title="Contacto"
-            description="Informacion de contacto del restaurante"
+            title={t('pages.restaurant.contact')}
+            description={t('pages.restaurant.contactDesc')}
           />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
-              label="Direccion"
+              label={t('common.address')}
               name="address"
               value={formData.address}
               onChange={handleChange}
@@ -212,7 +214,7 @@ export function RestaurantPage() {
             />
 
             <Input
-              label="Telefono"
+              label={t('common.phone')}
               name="phone"
               value={formData.phone}
               onChange={handleChange}
@@ -221,7 +223,7 @@ export function RestaurantPage() {
             />
 
             <Input
-              label="Email"
+              label={t('common.email')}
               name="email"
               type="email"
               value={formData.email}
@@ -234,7 +236,7 @@ export function RestaurantPage() {
 
         <div className="flex justify-end gap-3">
           <Button type="submit" isLoading={isPending} leftIcon={<Building2 className="w-4 h-4" />}>
-            {restaurant ? 'Guardar Cambios' : 'Crear Restaurante'}
+            {restaurant ? t('common.save') : t('common.create')}
           </Button>
         </div>
       </form>

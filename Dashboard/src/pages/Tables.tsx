@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useId, useActionState, useEffect } from 'react'
-import { Plus, Trash2, Users, Archive, Clock, Wifi, WifiOff, RefreshCw } from 'lucide-react'
+import { Plus, Trash2, Users, Archive, Clock, Wifi, WifiOff, RefreshCw, QrCode } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useTableWebSocket } from '../hooks/useTableWebSocket'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -23,6 +24,7 @@ import { handleError } from '../utils/logger'
 import { canCreateTable, canEditTable, canDelete } from '../utils/permissions'
 import { helpContent } from '../utils/helpContent'
 import { TABLE_STATUS_LABELS, TABLE_SECTORS, TABLE_DEFAULT_TIME } from '../utils/constants'
+import { tableAPI } from '../services/api'
 import { BulkTableModal } from '../components/tables/BulkTableModal'
 import { WaiterAssignmentModal } from '../components/tables/WaiterAssignmentModal'
 import { TableSessionModal } from '../components/tables/TableSessionModal'
@@ -40,25 +42,29 @@ const initialFormData: RestaurantTableFormData = {
   is_active: true,
 }
 
-const statusOptions: { value: TableStatus; label: string }[] = [
-  { value: 'libre', label: 'Libre' },
-  { value: 'solicito_pedido', label: 'Solicito Pedido' },
-  { value: 'pedido_cumplido', label: 'Pedido Cumplido' },
-  { value: 'cuenta_solicitada', label: 'Cuenta Solicitada' },
-  { value: 'ocupada', label: 'Ocupada' },
-]
+function getStatusOptions(t: (key: string) => string): { value: TableStatus; label: string }[] {
+  return [
+    { value: 'libre', label: t('pages.tables.statusLabels.libre') },
+    { value: 'solicito_pedido', label: t('pages.tables.statusLabels.solicito_pedido') },
+    { value: 'pedido_cumplido', label: t('pages.tables.statusLabels.pedido_cumplido') },
+    { value: 'cuenta_solicitada', label: t('pages.tables.statusLabels.cuenta_solicitada') },
+    { value: 'ocupada', label: t('pages.tables.statusLabels.ocupada') },
+  ]
+}
 
 // Labels for order status (round lifecycle)
 // Flow: pending → confirmed → submitted → in_kitchen → ready → served
-const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  none: '',
-  pending: 'Pendiente',     // Waiting for waiter to verify at table
-  confirmed: 'Confirmado',  // Waiter verified, waiting for admin to send to kitchen
-  submitted: 'En Cocina',   // Sent to kitchen by admin/manager
-  in_kitchen: 'En Cocina',
-  ready_with_kitchen: 'Listo + Cocina',  // Mixed: some ready, some still in kitchen
-  ready: 'Listo',
-  served: 'Servido',
+function getOrderStatusLabels(t: (key: string) => string): Record<OrderStatus, string> {
+  return {
+    none: '',
+    pending: t('pages.tables.orderStatusLabels.pending'),
+    confirmed: t('pages.tables.orderStatusLabels.confirmed'),
+    submitted: t('pages.tables.orderStatusLabels.submitted'),
+    in_kitchen: t('pages.tables.orderStatusLabels.in_kitchen'),
+    ready_with_kitchen: t('pages.tables.orderStatusLabels.ready_with_kitchen'),
+    ready: t('pages.tables.orderStatusLabels.ready'),
+    served: t('pages.tables.orderStatusLabels.served'),
+  }
 }
 
 // Colors for order status badges
@@ -86,13 +92,13 @@ function getOrderStatusStyles(orderStatus: OrderStatus) {
 }
 
 // Colores para cada estado de mesa
-function getStatusStyles(status: TableStatus, isActive: boolean) {
+function getStatusStyles(status: TableStatus, isActive: boolean, t: (key: string) => string) {
   if (!isActive) {
     return {
       bg: 'bg-[var(--bg-tertiary)]',
       border: 'border-[var(--border-emphasis)]',
       text: 'text-[var(--text-muted)]',
-      label: 'Inactiva',
+      label: t('pages.tables.inactive'),
     }
   }
 
@@ -102,35 +108,35 @@ function getStatusStyles(status: TableStatus, isActive: boolean) {
         bg: 'bg-green-900/30',
         border: 'border-[var(--success-border)]',
         text: 'text-[var(--success-text)]',
-        label: 'Libre',
+        label: t('pages.tables.statusLabels.libre'),
       }
     case 'ocupada':
       return {
         bg: 'bg-red-900/30',
         border: 'border-[var(--danger-border)]',
         text: 'text-[var(--danger-text)]',
-        label: 'Ocupada',
+        label: t('pages.tables.statusLabels.ocupada'),
       }
     case 'solicito_pedido':
       return {
         bg: 'bg-yellow-900/30',
         border: 'border-yellow-500',
         text: 'text-[var(--warning-text)]',
-        label: 'Solicito Pedido',
+        label: t('pages.tables.statusLabels.solicito_pedido'),
       }
     case 'pedido_cumplido':
       return {
         bg: 'bg-orange-100',
         border: 'border-orange-500',
         text: 'text-orange-700',
-        label: 'Pedido Cumplido',
+        label: t('pages.tables.statusLabels.pedido_cumplido'),
       }
     case 'cuenta_solicitada':
       return {
         bg: 'bg-purple-900/30',
         border: 'border-purple-500',
         text: 'text-purple-400',
-        label: 'Cuenta Solicitada',
+        label: t('pages.tables.statusLabels.cuenta_solicitada'),
       }
     default:
       return {
@@ -148,14 +154,17 @@ interface TableCardProps {
   onEdit: (table: RestaurantTable) => void
   onDelete: (table: RestaurantTable) => void
   onArchive: (table: RestaurantTable) => void
+  onQR: (table: RestaurantTable) => void
   canEdit: boolean
   canDelete: boolean
 }
 
-function TableCard({ table, onEdit, onDelete, onArchive, canEdit, canDelete }: TableCardProps) {
-  const styles = getStatusStyles(table.status, table.is_active !== false)
+function TableCard({ table, onEdit, onDelete, onArchive, onQR, canEdit, canDelete }: TableCardProps) {
+  const { t } = useTranslation()
+  const styles = getStatusStyles(table.status, table.is_active !== false, t)
   const orderStatus = table.orderStatus ?? 'none'
   const orderStatusStyles = getOrderStatusStyles(orderStatus)
+  const ORDER_STATUS_LABELS = getOrderStatusLabels(t)
   const orderStatusLabel = ORDER_STATUS_LABELS[orderStatus]
 
   // Determine what label to show: order status takes priority over table status when occupied
@@ -237,6 +246,18 @@ function TableCard({ table, onEdit, onDelete, onArchive, canEdit, canDelete }: T
 
       {/* Botones de acción */}
       <div className="absolute top-0.5 right-0.5 flex gap-0.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onQR(table)
+          }}
+          className="p-0.5 rounded bg-[var(--bg-tertiary)]/80 hover:bg-blue-600 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors"
+          aria-label={`Codigo QR mesa ${table.number}`}
+          title="Ver QR"
+        >
+          <QrCode className="w-2.5 h-2.5" aria-hidden="true" />
+        </button>
         {canDelete && (
           <button
             type="button"
@@ -271,19 +292,20 @@ function TableCard({ table, onEdit, onDelete, onArchive, canEdit, canDelete }: T
 
 // Leyenda de estados
 function StatusLegend() {
+  const { t } = useTranslation()
   const statuses: { status: TableStatus; label: string }[] = [
-    { status: 'libre', label: 'Libre' },
-    { status: 'ocupada', label: 'Ocupada' },
-    { status: 'solicito_pedido', label: 'Solicito Pedido' },
-    { status: 'pedido_cumplido', label: 'Pedido Cumplido' },
-    { status: 'cuenta_solicitada', label: 'Cuenta Solicitada' },
+    { status: 'libre', label: t('pages.tables.statusLabels.libre') },
+    { status: 'ocupada', label: t('pages.tables.statusLabels.ocupada') },
+    { status: 'solicito_pedido', label: t('pages.tables.statusLabels.solicito_pedido') },
+    { status: 'pedido_cumplido', label: t('pages.tables.statusLabels.pedido_cumplido') },
+    { status: 'cuenta_solicitada', label: t('pages.tables.statusLabels.cuenta_solicitada') },
   ]
 
   return (
     <div className="flex flex-wrap gap-4 mb-4 p-3 bg-[var(--bg-tertiary)]/50 rounded-lg">
-      <span className="text-sm text-[var(--text-tertiary)] font-medium">Leyenda:</span>
+      <span className="text-sm text-[var(--text-tertiary)] font-medium">{t('pages.tables.legend')}</span>
       {statuses.map(({ status, label }) => {
-        const styles = getStatusStyles(status, true)
+        const styles = getStatusStyles(status, true, t)
         return (
           <div key={status} className="flex items-center gap-2">
             <div className={`w-4 h-4 rounded border-2 ${styles.bg} ${styles.border}`} />
@@ -297,7 +319,8 @@ function StatusLegend() {
 
 export function TablesPage() {
   // REACT 19: Document metadata
-  useDocumentTitle('Mesas')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.tables.title'))
 
   // WebSocket for real-time updates
   const { isConnected: isWsConnected, isReconnecting, reconnect } = useTableWebSocket()
@@ -335,6 +358,12 @@ export function TablesPage() {
   const [filterBranchId, setFilterBranchId] = useState<string>(() => branches[0]?.id || '')
   const [filterStatus, setFilterStatus] = useState<string>('')
 
+  // QR Code modal state
+  const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [qrUrl, setQrUrl] = useState<string | null>(null)
+  const [qrTableCode, setQrTableCode] = useState<string>('')
+  const [qrLoading, setQrLoading] = useState(false)
+
   // REACT 19 IMPROVEMENT: Use useActionState for form handling
   const submitAction = useCallback(
     async (_prevState: FormState<RestaurantTableFormData>, formDataSubmit: FormData): Promise<FormState<RestaurantTableFormData>> => {
@@ -361,15 +390,15 @@ export function TablesPage() {
       try {
         if (selectedTable) {
           updateTable(selectedTable.id, data)
-          toast.success('Mesa actualizada correctamente')
+          toast.success(t('pages.tables.tableUpdated'))
         } else {
           addTable(data)
-          toast.success('Mesa creada correctamente')
+          toast.success(t('pages.tables.tableCreated'))
         }
         return { isSuccess: true }
       } catch (error) {
         const message = handleError(error, 'TablesPage.submitAction')
-        toast.error(`Error al guardar la mesa: ${message}`)
+        toast.error(`${t('pages.tables.errorSaving')}: ${message}`)
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -478,7 +507,7 @@ export function TablesPage() {
   const getBranchName = useCallback(
     (branchId: string) => {
       const branch = branches.find((b) => b.id === branchId)
-      return branch?.name || 'Sin sucursal'
+      return branch?.name || t('forms.labels.branch')
     },
     [branches]
   )
@@ -593,17 +622,17 @@ export function TablesPage() {
     try {
       const tableExists = tables.some((t) => t.id === selectedTable.id)
       if (!tableExists) {
-        toast.error('La mesa ya no existe')
+        toast.error(t('pages.tables.tableNotFound'))
         setIsDeleteOpen(false)
         return
       }
 
       deleteTable(selectedTable.id)
-      toast.success('Mesa eliminada correctamente')
+      toast.success(t('pages.tables.tableDeleted'))
       setIsDeleteOpen(false)
     } catch (error) {
       const message = handleError(error, 'TablesPage.handleDelete')
-      toast.error(`Error al eliminar la mesa: ${message}`)
+      toast.error(`${t('pages.tables.errorDeleting')}: ${message}`)
     }
   }, [selectedTable, tables, deleteTable])
 
@@ -629,12 +658,35 @@ export function TablesPage() {
         close_time: TABLE_DEFAULT_TIME,
       })
 
-      toast.success(`Mesa #${table.number} archivada y liberada`)
+      toast.success(t('pages.tables.tableArchived', { number: table.number }))
     } catch (error) {
       const message = handleError(error, 'TablesPage.handleArchive')
-      toast.error(`Error al archivar: ${message}`)
+      toast.error(`${t('pages.tables.errorArchiving')}: ${message}`)
     }
   }, [createOrderHistory, closeOrderHistory, getActiveOrderHistory, getCurrentTime, updateTable])
+
+  // QR Code handler
+  const handleShowQR = useCallback(async (table: RestaurantTable) => {
+    setQrLoading(true)
+    setQrTableCode(String(table.number))
+    setQrModalOpen(true)
+    try {
+      const backendId = parseInt(table.id, 10)
+      if (isNaN(backendId)) {
+        // Fallback for local-only tables without backend ID
+        setQrUrl(null)
+        return
+      }
+      const result = await tableAPI.getQRUrl(backendId)
+      setQrUrl(result.url)
+      setQrTableCode(result.table_code)
+    } catch (error) {
+      handleError(error, 'TablesPage.handleShowQR')
+      setQrUrl(null)
+    } finally {
+      setQrLoading(false)
+    }
+  }, [])
 
   const branchOptions = useMemo(
     () =>
@@ -654,12 +706,14 @@ export function TablesPage() {
     []
   )
 
+  const statusOptions = getStatusOptions(t)
+
   const filterStatusOptions = useMemo(
     () => [
-      { value: '', label: 'Todos los estados' },
+      { value: '', label: t('pages.orders.allStatuses') },
       ...statusOptions,
     ],
-    []
+    [t, statusOptions]
   )
 
   // Contadores por estado
@@ -682,8 +736,8 @@ export function TablesPage() {
 
   return (
     <PageContainer
-      title="Mesas"
-      description="Administra las mesas de las sucursales"
+      title={t('pages.tables.title')}
+      description={t('pages.tables.descriptionBranches')}
       helpContent={helpContent.tables}
       actions={
         <div className="flex items-center gap-4">
@@ -692,7 +746,7 @@ export function TablesPage() {
             {isWsConnected ? (
               <>
                 <Wifi className="w-4 h-4 text-[var(--success-icon)]" />
-                <span className="text-sm text-[var(--success-icon)]">En vivo</span>
+                <span className="text-sm text-[var(--success-icon)]">{t('pages.kitchen.live')}</span>
               </>
             ) : (
               <button
@@ -707,7 +761,7 @@ export function TablesPage() {
                   <WifiOff className="w-4 h-4 text-[var(--warning-icon)]" />
                 )}
                 <span className="text-sm font-medium text-[var(--warning-text)]">
-                  {isReconnecting ? 'Reconectando...' : 'Sin conexión - Reconectar'}
+                  {isReconnecting ? t('pages.kitchen.reconnecting') : t('pages.tables.noConnection')}
                 </span>
               </button>
             )}
@@ -762,12 +816,12 @@ export function TablesPage() {
         />
         {/* Contador de mesas */}
         <div className="flex items-center gap-2 ml-auto">
-          <Badge variant="default">{statusCounts.total} mesas</Badge>
+          <Badge variant="default">{statusCounts.total} {t('pages.tables.tables')}</Badge>
           {statusCounts.libre > 0 && (
-            <Badge variant="success">{statusCounts.libre} libres</Badge>
+            <Badge variant="success">{statusCounts.libre} {t('pages.tables.free')}</Badge>
           )}
           {statusCounts.ocupada > 0 && (
-            <Badge variant="danger">{statusCounts.ocupada} ocupadas</Badge>
+            <Badge variant="danger">{statusCounts.ocupada} {t('pages.tables.occupied')}</Badge>
           )}
         </div>
       </div>
@@ -778,13 +832,13 @@ export function TablesPage() {
       {branches.length === 0 ? (
         <Card className="text-center py-12">
           <p className="text-[var(--text-muted)]">
-            No hay sucursales. Crea una sucursal primero para poder agregar mesas.
+            {t('pages.tables.noBranchesForTables')}
           </p>
         </Card>
       ) : sortedTables.length === 0 ? (
         <Card className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
-            No hay mesas en esta sucursal. {canCreate ? 'Crea una para comenzar.' : ''}
+            {t('pages.tables.noTablesInBranch')} {canCreate ? t('pages.tables.createOneToStart') : ''}
           </p>
           {canCreate && (
             <Button onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
@@ -802,7 +856,7 @@ export function TablesPage() {
                 {/* Encabezado del sector */}
                 <div className="flex items-center gap-3 mb-3">
                   <h3 className="text-lg font-semibold text-[var(--text-primary)]">{sector}</h3>
-                  <Badge variant="default">{sectorTables.length} mesas</Badge>
+                  <Badge variant="default">{sectorTables.length} {t('pages.tables.tables')}</Badge>
                   {/* Mozos asignados al sector */}
                   {sectorWaiters.length > 0 && (
                     <div className="flex items-center gap-2">
@@ -821,7 +875,7 @@ export function TablesPage() {
                     </div>
                   )}
                   {sectorWaiters.length === 0 && (
-                    <span className="text-xs text-[var(--text-muted)] italic">Sin mozos asignados</span>
+                    <span className="text-xs text-[var(--text-muted)] italic">{t('pages.tables.noWaitersAssigned')}</span>
                   )}
                   <div className="flex-1 h-px bg-[var(--bg-tertiary)]" />
                 </div>
@@ -834,6 +888,7 @@ export function TablesPage() {
                       onEdit={openSessionModal}
                       onDelete={openDeleteDialog}
                       onArchive={handleArchive}
+                      onQR={handleShowQR}
                       canEdit={canEdit}
                       canDelete={canDeleteTable}
                     />
@@ -849,7 +904,7 @@ export function TablesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={selectedTable ? 'Editar Mesa' : 'Nueva Mesa'}
+        title={selectedTable ? t('pages.tables.editTable') : t('pages.tables.newTable')}
         size="md"
         footer={
           <>
@@ -857,7 +912,7 @@ export function TablesPage() {
               Cancelar
             </Button>
             <Button type="submit" form="table-form" isLoading={isPending}>
-              {selectedTable ? 'Guardar' : 'Crear'}
+              {selectedTable ? t('common.save') : t('common.create')}
             </Button>
           </>
         }
@@ -865,7 +920,7 @@ export function TablesPage() {
         <form id="table-form" action={formAction} className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <HelpButton
-              title="Formulario de Mesa"
+              title={t('pages.tables.editTable')}
               size="sm"
               content={
                 <div className="space-y-3">
@@ -907,12 +962,12 @@ export function TablesPage() {
                 </div>
               }
             />
-            <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+            <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
           </div>
 
           {/* Branch Select */}
           <Select
-            label="Sucursal"
+            label={t('forms.labels.branch')}
             name="branch_id"
             options={branchOptions}
             placeholder="Seleccionar sucursal"
@@ -923,7 +978,7 @@ export function TablesPage() {
 
           {/* Table Number */}
           <Input
-            label="Numero de mesa"
+            label={t('pages.tables.tableNumber')}
             name="number"
             type="number"
             min={1}
@@ -939,7 +994,7 @@ export function TablesPage() {
 
           {/* Capacity */}
           <Input
-            label="Capacidad (comensales)"
+            label={t('pages.tables.capacityLabel')}
             name="capacity"
             type="number"
             min={1}
@@ -956,7 +1011,7 @@ export function TablesPage() {
 
           {/* Sector */}
           <Select
-            label="Sector"
+            label={t('forms.labels.sector')}
             name="sector"
             options={sectorOptions}
             value={formData.sector}
@@ -979,7 +1034,7 @@ export function TablesPage() {
           {/* Time fields */}
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Hora Pedido"
+              label={t('pages.tables.orderTime')}
               name="order_time"
               type="time"
               value={formData.order_time}
@@ -990,7 +1045,7 @@ export function TablesPage() {
               error={state.errors?.order_time}
             />
             <Input
-              label="Hora Cierre"
+              label={t('pages.tables.closeTime')}
               name="close_time"
               type="time"
               value={formData.close_time}
@@ -1003,15 +1058,15 @@ export function TablesPage() {
           </div>
           <p className="text-xs text-[var(--text-muted)] -mt-2">
             {formData.status === 'solicito_pedido' || formData.status === 'pedido_cumplido'
-              ? 'Hora de pedido requerida. Hora de cierre en 00:00.'
+              ? t('pages.tables.timeHints.orderRequired')
               : formData.status === 'cuenta_solicitada'
-                ? 'Ambas horas requeridas. Hora de cierre debe ser >= hora de pedido.'
-                : 'Ambas horas en 00:00 para este estado.'}
+                ? t('pages.tables.timeHints.bothRequired')
+                : t('pages.tables.timeHints.bothZero')}
           </p>
 
           {/* Active Toggle */}
           <Toggle
-            label="Mesa activa"
+            label={t('pages.tables.activeTable')}
             name="is_active"
             checked={formData.is_active}
             onChange={(e) =>
@@ -1026,9 +1081,9 @@ export function TablesPage() {
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleDelete}
-        title="Eliminar Mesa"
+        title={t('pages.tables.deleteTable')}
         message={`¿Estas seguro de eliminar la mesa #${selectedTable?.number} de ${selectedTable ? getBranchName(selectedTable.branch_id) : ''}?`}
-        confirmLabel="Eliminar"
+        confirmLabel={t('common.delete')}
       />
 
       {/* Bulk Table Creation Modal */}
@@ -1044,7 +1099,7 @@ export function TablesPage() {
           if (!isNaN(branchIdNum)) {
             fetchTables(branchIdNum)
           }
-          toast.success('Mesas creadas correctamente')
+          toast.success(t('pages.tables.tablesCreated'))
         }}
       />
 
@@ -1062,6 +1117,46 @@ export function TablesPage() {
         onClose={() => setIsSessionModalOpen(false)}
         table={selectedTable}
       />
+
+      {/* QR Code Modal */}
+      <Modal
+        isOpen={qrModalOpen}
+        onClose={() => { setQrModalOpen(false); setQrUrl(null) }}
+        title={`QR - Mesa ${qrTableCode}`}
+        size="sm"
+      >
+        <div className="flex flex-col items-center gap-4 py-4">
+          {qrLoading ? (
+            <div className="w-48 h-48 flex items-center justify-center" role="status">
+              <div className="w-8 h-8 border-2 border-[var(--primary-500)] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : qrUrl ? (
+            <>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrUrl)}`}
+                alt={`QR code for table ${qrTableCode}`}
+                className="w-48 h-48 rounded-lg border border-[var(--border-default)] bg-white p-2"
+              />
+              <p className="text-xs text-[var(--text-tertiary)] text-center break-all max-w-[250px]">
+                {qrUrl}
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(qrUrl)
+                  toast.success('URL copiada al portapapeles')
+                }}
+              >
+                Copiar URL
+              </Button>
+            </>
+          ) : (
+            <p className="text-[var(--text-muted)] text-center">
+              No se pudo generar el QR. La mesa debe existir en el backend.
+            </p>
+          )}
+        </div>
+      </Modal>
     </PageContainer>
   )
 }

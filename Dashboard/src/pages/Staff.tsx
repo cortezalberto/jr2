@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useActionState, useDeferredValue, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { Plus, Edit2, Trash2, Search } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
 import { usePagination } from '../hooks/usePagination'
@@ -23,16 +24,17 @@ import type { FormState } from '../types/form'
 
 // Backend role values that map to frontend display
 const BACKEND_ROLES = [
-  { id: 'WAITER', name: 'Mozo' },
-  { id: 'KITCHEN', name: 'Cocinero' },
-  { id: 'MANAGER', name: 'Gerente' },
-  { id: 'ADMIN', name: 'Administrador' },
+  { id: 'WAITER', name: 'WAITER' },
+  { id: 'KITCHEN', name: 'KITCHEN' },
+  { id: 'MANAGER', name: 'MANAGER' },
+  { id: 'ADMIN', name: 'ADMIN' },
 ]
 
 // REACT 19 IMPROVEMENT: Use useActionState for form handling
 export default function StaffPage() {
   // REACT 19: Document metadata
-  useDocumentTitle('Personal')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.staff.title'))
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
   const allBranches = useBranchStore(selectBranches)
   const selectedBranch = useBranchStore((state) =>
@@ -135,15 +137,15 @@ export default function StaffPage() {
       try {
         if (modal.selectedItem) {
           await updateStaffAsync(modal.selectedItem.id, data)
-          toast.success('Empleado actualizado correctamente')
+          toast.success(t('pages.staff.employeeUpdated'))
         } else {
           await createStaffAsync(data)
-          toast.success('Empleado creado correctamente')
+          toast.success(t('pages.staff.employeeCreated'))
         }
         return { isSuccess: true, message: 'Guardado correctamente' }
       } catch (error) {
         const message = handleError(error, 'StaffPage.submitAction')
-        toast.error(`Error al guardar el empleado: ${message}`)
+        toast.error(`${t('pages.staff.errorSaving')}: ${message}`)
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -186,11 +188,11 @@ export default function StaffPage() {
   const getRoleName = (roleId: string) => {
     const backendRole = BACKEND_ROLES.find((r) => r.id === roleId)
     if (backendRole) {
-      return backendRole.name
+      return t(`pages.staff.roleLabels.${backendRole.name}`)
     }
     // Fallback to roleStore lookup for legacy IDs
     const role = roles.find((r) => r.id === roleId)
-    return role?.name || roleId || 'Sin rol'
+    return role?.name || roleId || t('pages.staff.noRole')
   }
 
   // SPRINT 14: Simplified modal handlers using custom hook
@@ -223,13 +225,13 @@ export default function StaffPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (window.confirm('¿Está seguro de eliminar este empleado?')) {
+    if (window.confirm(t('pages.staff.confirmDelete'))) {
       try {
         await deleteStaffAsync(id)
-        toast.success('Empleado eliminado correctamente')
+        toast.success(t('pages.staff.employeeDeleted'))
       } catch (error) {
         const message = handleError(error, 'StaffPage.handleDelete')
-        toast.error(`Error al eliminar el empleado: ${message}`)
+        toast.error(`${t('pages.staff.errorDeleting')}: ${message}`)
       }
     }
   }
@@ -245,12 +247,12 @@ export default function StaffPage() {
             Personal
           </h1>
           <p className="mt-2 text-[var(--text-tertiary)]">
-            Gestiona los datos del personal del restaurante
+            {t('pages.staff.description')}
           </p>
         </div>
         <Card>
           <div className="text-center py-12">
-            <p className="text-[var(--text-muted)] text-lg">Selecciona una sucursal para continuar</p>
+            <p className="text-[var(--text-muted)] text-lg">{t('pages.staff.selectBranchToContinue')}</p>
           </div>
         </Card>
       </div>
@@ -265,10 +267,10 @@ export default function StaffPage() {
           className="text-3xl font-bold text-[var(--text-primary)]"
           style={{ fontFamily: 'var(--font-heading)' }}
         >
-          Personal - {selectedBranch?.name}
+          {t('pages.staff.title')} - {selectedBranch?.name}
         </h1>
         <p className="mt-2 text-[var(--text-tertiary)]">
-          Gestiona los datos del personal de la sucursal
+          {t('pages.staff.descriptionBranch')}
         </p>
       </div>
 
@@ -279,7 +281,7 @@ export default function StaffPage() {
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <Input
               type="text"
-              placeholder="Buscar por nombre, email o DNI..."
+              placeholder={t('pages.staff.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10"
@@ -299,24 +301,24 @@ export default function StaffPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[var(--bg-tertiary)]">
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Nombre</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Rol</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Email</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Teléfono</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">DNI</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Fecha Ingreso</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Estado</th>
-                <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">Acciones</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('common.name')}</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('pages.staff.role')}</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('common.email')}</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('common.phone')}</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('pages.staff.dni')}</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('pages.staff.hireDate')}</th>
+                <th className="text-left py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('common.status')}</th>
+                <th className="text-right py-3 px-4 text-sm font-semibold text-[var(--text-primary)]">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody>
               {paginatedStaff.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="text-center py-12">
-                    <p className="text-[var(--text-muted)] text-lg">No se encontraron empleados</p>
+                    <p className="text-[var(--text-muted)] text-lg">{t('pages.staff.noStaffFound')}</p>
                     {searchTerm && (
                       <p className="text-[var(--text-muted)] text-sm mt-2">
-                        Intenta con otro término de búsqueda
+                        {t('pages.staff.tryAnotherSearch')}
                       </p>
                     )}
                   </td>
@@ -351,7 +353,7 @@ export default function StaffPage() {
                     </td>
                     <td className="py-3 px-4">
                       <Badge variant={staffMember.is_active ? 'success' : 'default'}>
-                        {staffMember.is_active ? 'Activo' : 'Inactivo'}
+                        {staffMember.is_active ? t('common.active') : t('common.inactive')}
                       </Badge>
                     </td>
                     <td className="py-3 px-4">
@@ -399,7 +401,7 @@ export default function StaffPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Empleado' : 'Nuevo Empleado'}
+        title={modal.selectedItem ? t('pages.staff.editStaff') : t('pages.staff.newStaff')}
       >
         <form action={formAction} className="space-y-4">
 
@@ -448,7 +450,7 @@ export default function StaffPage() {
               className={`w-full px-3 py-2 bg-[var(--bg-tertiary)] border rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)] focus:border-transparent transition-colors ${state.errors?.branch_id ? 'border-[var(--danger-border)]' : 'border-[var(--text-muted)]'}`}
               disabled={!userIsAdmin && availableBranches.length === 1}
             >
-              <option value="">Seleccionar sucursal</option>
+              <option value="">{t('pages.staff.selectBranch')}</option>
               {availableBranches.map((branch) => (
                 <option key={branch.id} value={branch.id}>
                   {branch.name}
@@ -460,7 +462,7 @@ export default function StaffPage() {
             )}
             {!userIsAdmin && (
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Solo puedes asignar personal a tus sucursales
+                {t('pages.staff.onlyYourBranches')}
               </p>
             )}
           </div>
@@ -476,7 +478,7 @@ export default function StaffPage() {
               onChange={(e) => modal.setFormData({ ...modal.formData, role_id: e.target.value })}
               className={`w-full px-3 py-2 bg-[var(--bg-tertiary)] border rounded-lg text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)] focus:border-transparent transition-colors ${state.errors?.role_id ? 'border-[var(--danger-border)]' : 'border-[var(--text-muted)]'}`}
             >
-              <option value="">Seleccionar rol</option>
+              <option value="">{t('pages.staff.selectRole')}</option>
               {availableRoles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
@@ -488,7 +490,7 @@ export default function StaffPage() {
             )}
             {!userIsAdmin && (
               <p className="mt-1 text-xs text-[var(--text-muted)]">
-                Solo los administradores pueden asignar el rol de Administrador
+                {t('pages.staff.onlyAdminCanAssignAdmin')}
               </p>
             )}
           </div>
@@ -570,7 +572,7 @@ export default function StaffPage() {
 
           <div className="flex items-center gap-3 pt-4">
             <Button type="submit" className="flex-1" isLoading={isPending}>
-              {modal.selectedItem ? 'Actualizar' : 'Crear'}
+              {modal.selectedItem ? t('pages.staff.update') : t('common.create')}
             </Button>
             <Button type="button" variant="ghost" onClick={modal.close} className="flex-1">
               Cancelar

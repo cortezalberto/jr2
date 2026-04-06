@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { storeLogger } from '../utils/logger'
 import { useAuthStore, selectSelectedBranchId } from '../stores/authStore'
 import {
   useTablesStore,
@@ -123,7 +124,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
           setSelectedCategoryId(menuData.categories[0].id)
         }
       } catch (err) {
-        console.error('Failed to load menu:', err)
+        storeLogger.error('Failed to load menu', err)
         setMenuError('Error al cargar el menu')
       } finally {
         setIsLoadingMenu(false)
@@ -136,7 +137,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
   // Load session when table has active session
   useEffect(() => {
     if (table?.session_id) {
-      fetchSessionSummary(table.session_id).catch(console.error)
+      fetchSessionSummary(table.session_id).catch((err: unknown) => storeLogger.error('Failed to fetch session summary', err))
     } else {
       clearActiveSession()
     }
@@ -224,7 +225,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
       setShowActivateModal(false)
       setDinerCount(2)
     } catch (err) {
-      console.error('Failed to activate table:', err)
+      storeLogger.error('Failed to activate table', err)
     } finally {
       setIsActivating(false)
     }
@@ -249,7 +250,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
       // Refresh session summary
       await fetchSessionSummary(activeSession.session_id)
     } catch (err) {
-      console.error('Failed to submit round:', err)
+      storeLogger.error('Failed to submit round', err)
     } finally {
       setIsSubmittingRound(false)
     }
@@ -264,7 +265,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
       await requestCheck(activeSession.session_id)
       await fetchSessionSummary(activeSession.session_id)
     } catch (err) {
-      console.error('Failed to request check:', err)
+      storeLogger.error('Failed to request check', err)
     } finally {
       setIsRequestingCheck(false)
     }
@@ -321,7 +322,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
       // Refresh session
       await fetchSessionSummary(activeSession.session_id)
     } catch (err) {
-      console.error('Failed to register payment:', err)
+      storeLogger.error('Failed to register payment', err)
     } finally {
       setIsProcessingPayment(false)
     }
@@ -337,7 +338,7 @@ export function TakeOrderPage({ onBack }: TakeOrderPageProps) {
       clearCart()
       onBack()
     } catch (err) {
-      console.error('Failed to close table:', err)
+      storeLogger.error('Failed to close table', err)
     } finally {
       setIsClosingTable(false)
     }

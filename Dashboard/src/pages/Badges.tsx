@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useActionState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, Award } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -31,8 +32,9 @@ const initialFormData: BadgeFormData = {
 }
 
 export default function BadgesPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Distintivos')
+  useDocumentTitle(t('pages.badges.title'))
 
   const badges = useBadgeStore(selectBadges)
   const addBadge = useBadgeStore((s) => s.addBadge)
@@ -90,15 +92,15 @@ export default function BadgesPage() {
       try {
         if (modal.selectedItem) {
           updateBadge(modal.selectedItem.id, data)
-          toast.success('Insignia actualizada correctamente')
+          toast.success(t('toasts.updateSuccessFem', { entity: t('pages.badges.title') }))
         } else {
           addBadge(data)
-          toast.success('Insignia creada correctamente')
+          toast.success(t('toasts.createSuccessFem', { entity: t('pages.badges.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'BadgesPage.submitAction')
-        toast.error(`Error al guardar la insignia: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.badges.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -149,11 +151,11 @@ export default function BadgesPage() {
         )
       }
 
-      toast.success('Insignia eliminada correctamente')
+      toast.success(t('toasts.deleteSuccessFem', { entity: t('pages.badges.title') }))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'BadgesPage.handleDelete')
-      toast.error(`Error al eliminar la insignia: ${message}`)
+      toast.error(t('toasts.deleteError', { entity: t('pages.badges.title').toLowerCase() }) + `: ${message}`)
     }
   }, [deleteDialog, getProductCount, deleteBadge, removeBadgeFromProducts])
 
@@ -179,12 +181,12 @@ export default function BadgesPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         sortable: true,
       },
       {
         key: 'color',
-        label: 'Color',
+        label: t('pages.badges.color'),
         render: (badge) => (
           <div className="flex items-center gap-2">
             <div
@@ -197,10 +199,10 @@ export default function BadgesPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         render: (badge) => (
           <UIBadge variant={badge.is_active ? 'success' : 'danger'}>
-            {badge.is_active ? 'Activo' : 'Inactivo'}
+            {badge.is_active ? t('status.active') : t('status.inactive')}
           </UIBadge>
         ),
       },
@@ -251,12 +253,12 @@ export default function BadgesPage() {
       <meta name="description" content="Gestión de insignias para productos del restaurante" />
 
       <PageContainer
-        title="Insignias"
+        title={t('pages.badges.title')}
         actions={
           canCreate ? (
             <Button onClick={openCreateModal}>
               <Plus className="w-4 h-4 mr-2" />
-              Nueva Insignia
+              {t('pages.badges.newBadge')}
             </Button>
           ) : undefined
         }
@@ -265,7 +267,7 @@ export default function BadgesPage() {
           <Table
             columns={columns}
             data={paginatedBadges}
-            emptyMessage="No hay insignias creadas. Crea una para comenzar."
+            emptyMessage={t('pages.badges.noBadges')}
           />
           <Pagination
             currentPage={currentPage}
@@ -280,22 +282,22 @@ export default function BadgesPage() {
         <Modal
           isOpen={modal.isOpen}
           onClose={modal.close}
-          title={modal.selectedItem ? 'Editar Insignia' : 'Nueva Insignia'}
+          title={modal.selectedItem ? t('pages.badges.editBadge') : t('pages.badges.newBadge')}
           size="md"
           footer={
             <>
               <Button variant="ghost" onClick={modal.close}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button type="submit" form="badge-form" isLoading={isPending}>
-                {modal.selectedItem ? 'Guardar Cambios' : 'Crear Insignia'}
+                {modal.selectedItem ? t('common.save') : t('common.create')}
               </Button>
             </>
           }
         >
           <form id="badge-form" action={formAction} className="space-y-4">
             <Input
-              label="Nombre"
+              label={t('common.name')}
               name="name"
               placeholder="Ej: Nuevo, Popular, Chef's Choice"
               value={modal.formData.name}
@@ -308,7 +310,7 @@ export default function BadgesPage() {
 
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                Color
+                {t('pages.badges.color')}
               </label>
               <div className="flex items-center gap-3">
                 <input
@@ -331,14 +333,14 @@ export default function BadgesPage() {
                 />
               </div>
               <p className="text-xs text-[var(--text-muted)] mt-1">
-                Color del texto y fondo de la insignia
+                {t('pages.badges.colorHint')}
               </p>
             </div>
 
             {/* Preview */}
             <div>
               <label className="block text-sm font-medium text-[var(--text-secondary)] mb-2">
-                Vista Previa
+                {t('pages.badges.preview')}
               </label>
               <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-default)]">
                 {modal.formData.name ? (
@@ -353,14 +355,14 @@ export default function BadgesPage() {
                   </span>
                 ) : (
                   <span className="text-sm text-[var(--text-muted)]">
-                    Ingresa un nombre para ver la vista previa
+                    {t('pages.badges.previewHint')}
                   </span>
                 )}
               </div>
             </div>
 
             <Toggle
-              label="Activo"
+              label={t('common.active')}
               name="is_active"
               checked={modal.formData.is_active}
               onChange={(e) =>
@@ -375,9 +377,9 @@ export default function BadgesPage() {
           isOpen={deleteDialog.isOpen}
           onClose={deleteDialog.close}
           onConfirm={handleDelete}
-          title="Eliminar Insignia"
-          message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-          confirmLabel="Eliminar"
+          title={t('pages.badges.deleteBadge')}
+          message={`${t('modals.confirmDelete')} "${deleteDialog.item?.name}"?`}
+          confirmLabel={t('common.delete')}
         />
       </PageContainer>
     </>

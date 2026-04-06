@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Store, Filter, Check, X, AlertTriangle } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout'
@@ -55,7 +56,8 @@ interface SubcategoryRow {
 type ExclusionRow = CategoryRow | SubcategoryRow
 
 export function ProductExclusionsPage() {
-  useDocumentTitle('Exclusion de Productos')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.productExclusions.title'))
 
   const branches = useBranchStore(selectBranches)
   const categoryExclusions = useExclusionStore(selectCategoryExclusions)
@@ -199,11 +201,11 @@ export function ProductExclusionsPage() {
         }
         toast.success(
           isCurrentlyExcluded
-            ? `"${row.name}" ahora se vende en las sucursales seleccionadas`
-            : `"${row.name}" excluido de las sucursales seleccionadas`
+            ? t('pages.productExclusions.nowSoldAt', { name: row.name })
+            : t('pages.productExclusions.nowExcluded', { name: row.name })
         )
       } catch {
-        toast.error('Error al actualizar exclusiones')
+        toast.error(t('pages.productExclusions.updateError'))
       }
     },
     [
@@ -222,10 +224,10 @@ export function ProductExclusionsPage() {
       const totalBranches = activeBranches.length
 
       if (excludedCount === 0) {
-        return <Badge variant="success">Todas las sucursales</Badge>
+        return <Badge variant="success">{t('pages.productExclusions.allBranches')}</Badge>
       }
       if (excludedCount === totalBranches) {
-        return <Badge variant="danger">Ninguna sucursal</Badge>
+        return <Badge variant="danger">{t('pages.productExclusions.noBranches')}</Badge>
       }
       return (
         <Badge variant="warning">
@@ -241,7 +243,7 @@ export function ProductExclusionsPage() {
     () => [
       {
         key: 'name',
-        label: viewMode === 'categories' ? 'Categoria' : 'Subcategoria',
+        label: viewMode === 'categories' ? t('pages.productExclusions.categoryCol') : t('pages.productExclusions.subcategoryCol'),
         render: (item) => (
           <div>
             <span className="font-medium">{item.name}</span>
@@ -255,7 +257,7 @@ export function ProductExclusionsPage() {
       },
       {
         key: 'status',
-        label: 'Disponibilidad',
+        label: t('pages.productExclusions.availabilityCol'),
         width: 'w-40',
         render: (item) => getStatusBadge(item),
       },
@@ -263,8 +265,8 @@ export function ProductExclusionsPage() {
         key: 'exclusion',
         label:
           selectedBranchIds.length > 0
-            ? `Excluir de ${selectedBranchIds.length} sucursal(es)`
-            : 'Selecciona sucursales',
+            ? t('pages.productExclusions.excludeCol', { count: selectedBranchIds.length })
+            : t('pages.productExclusions.selectBranches'),
         width: 'w-52',
         render: (item) => {
           if (selectedBranchIds.length === 0) {
@@ -289,7 +291,7 @@ export function ProductExclusionsPage() {
       },
       {
         key: 'details',
-        label: 'Sucursales excluidas',
+        label: t('pages.productExclusions.excludedBranchesCol'),
         render: (item) => {
           if (item.excludedBranchIds.length === 0) {
             return <span className="text-[var(--text-muted)] text-sm">-</span>
@@ -336,11 +338,11 @@ export function ProductExclusionsPage() {
   if (isLoading) {
     return (
       <PageContainer
-        title="Exclusion de Productos"
-        description="Cargando exclusiones..."
+        title={t('pages.productExclusions.title')}
+        description={t('pages.productExclusions.loadingDesc')}
       >
         <Card className="text-center py-12">
-          <div className="animate-pulse text-[var(--text-muted)]">Cargando...</div>
+          <div className="animate-pulse text-[var(--text-muted)]">{t('common.loading')}</div>
         </Card>
       </PageContainer>
     )
@@ -350,8 +352,8 @@ export function ProductExclusionsPage() {
   if (!canManage) {
     return (
       <PageContainer
-        title="Exclusion de Productos"
-        description="Solo ADMIN puede gestionar exclusiones"
+        title={t('pages.productExclusions.title')}
+        description={t('pages.productExclusions.adminOnly')}
       >
         <Card className="text-center py-12">
           <AlertTriangle className="w-12 h-12 text-[var(--warning-icon)] mx-auto mb-4" />
@@ -365,8 +367,8 @@ export function ProductExclusionsPage() {
 
   return (
     <PageContainer
-      title="Exclusion de Productos"
-      description="Configura que categorias o subcategorias NO se venden en cada sucursal"
+      title={t('pages.productExclusions.title')}
+      description={t('pages.productExclusions.description')}
     >
       {/* Branch Selection */}
       <Card className="mb-6">
@@ -418,8 +420,7 @@ export function ProductExclusionsPage() {
 
           {selectedBranchIds.length > 0 && (
             <p className="text-sm text-[var(--text-muted)]">
-              {selectedBranchIds.length} sucursal(es) seleccionada(s). Usa el toggle
-              en la tabla para excluir categorias/subcategorias de estas sucursales.
+              {t('pages.productExclusions.branchesSelected', { count: selectedBranchIds.length })}
             </p>
           )}
         </div>
@@ -459,7 +460,7 @@ export function ProductExclusionsPage() {
               onChange={(e) => setFilterCategory(e.target.value)}
               className="px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-sm text-[var(--text-secondary)]"
             >
-              <option value="">Todas las categorias</option>
+              <option value="">{t('pages.productExclusions.allCategories')}</option>
               {categoryFilterOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -470,7 +471,7 @@ export function ProductExclusionsPage() {
 
           <div className="ml-auto text-sm text-[var(--text-muted)]">
             {displayRows.length}{' '}
-            {viewMode === 'categories' ? 'categorias' : 'subcategorias'}
+            {viewMode === 'categories' ? t('pages.productExclusions.categoriesView').toLowerCase() : t('pages.productExclusions.subcategoriesView').toLowerCase()}
           </div>
         </div>
       </Card>
@@ -482,10 +483,10 @@ export function ProductExclusionsPage() {
           columns={columns}
           emptyMessage={
             viewMode === 'categories'
-              ? 'No hay categorias. Crea categorias primero.'
-              : 'No hay subcategorias. Crea subcategorias primero.'
+              ? t('pages.productExclusions.noCategoriesMessage')
+              : t('pages.productExclusions.noSubcategoriesMessage')
           }
-          ariaLabel={`Lista de ${viewMode === 'categories' ? 'categorias' : 'subcategorias'} para configurar exclusiones`}
+          ariaLabel={t('pages.productExclusions.listLabel', { type: viewMode === 'categories' ? t('pages.productExclusions.categoriesView') : t('pages.productExclusions.subcategoriesView') })}
         />
         <Pagination
           currentPage={currentPage}
@@ -502,10 +503,10 @@ export function ProductExclusionsPage() {
           <AlertTriangle className="w-5 h-5 text-[var(--warning-icon)] flex-shrink-0 mt-0.5" />
           <div className="text-sm text-[var(--text-tertiary)] space-y-2">
             <p>
-              <strong>Como funciona:</strong>
+              <strong>{t('pages.productExclusions.howItWorks')}</strong>
             </p>
             <ol className="list-decimal pl-5 space-y-1">
-              <li>Selecciona una o mas sucursales en la seccion superior.</li>
+              <li>{t('pages.productExclusions.step1')}</li>
               <li>
                 Activa el toggle en la columna "Excluir" para marcar una
                 categoria/subcategoria como NO disponible en las sucursales

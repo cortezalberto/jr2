@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useOrderHistoryData, useTableStore } from '../stores/tableStore'
 import type { OrderRecord, OrderStatus } from '../types'
@@ -27,9 +27,10 @@ function formatTime(isoString: string): string {
 interface OrderCardProps {
   order: OrderRecord
   getDinerColor: (dinerId: string) => string
+  onReorder?: (order: OrderRecord) => void
 }
 
-function OrderCard({ order, getDinerColor }: OrderCardProps) {
+function OrderCard({ order, getDinerColor, onReorder }: OrderCardProps) {
   const { t } = useTranslation()
   const statusColors = STATUS_COLORS[order.status]
   const statusLabel = t(`orderHistory.status.${order.status}`)
@@ -76,6 +77,21 @@ function OrderCard({ order, getDinerColor }: OrderCardProps) {
         <span className="text-white font-semibold">${order.subtotal.toFixed(2)}</span>
       </div>
 
+      {/* Re-order button */}
+      {onReorder && order.items.length > 0 && (
+        <div className="pt-1">
+          <button
+            onClick={() => onReorder(order)}
+            className="w-full py-2 px-3 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M2.985 19.644l3.181-3.182" />
+            </svg>
+            {t('orderHistory.reorder', 'Repetir pedido')}
+          </button>
+        </div>
+      )}
+
       {/* Timeline */}
       {(order.confirmed_at || order.ready_at || order.delivered_at) && (
         <div className="pt-2 border-t border-dark-border space-y-1">
@@ -113,7 +129,27 @@ export default function OrderHistory({ isOpen, onClose }: OrderHistoryProps) {
   const { t } = useTranslation()
   const { orders, currentRound, totalConsumed, session } = useOrderHistoryData()
   const getDinerColor = useTableStore((state) => state.getDinerColor)
+  const addToCart = useTableStore((state) => state.addToCart)
   const syncOrdersFromBackend = useTableStore((state) => state.syncOrdersFromBackend)
+
+  // Re-order: copy items from a past round into the cart
+  const handleReorder = useCallback((order: OrderRecord) => {
+    let addedCount = 0
+    for (const item of order.items) {
+      addToCart({
+        productId: item.productId,
+        name: item.name,
+        price: item.price,
+        image: item.image || '',
+        quantity: item.quantity,
+      })
+      addedCount += item.quantity
+    }
+    if (addedCount > 0) {
+      // Close the modal after re-ordering
+      onClose()
+    }
+  }, [addToCart, onClose])
 
   // FIX: Sync orders from backend when modal opens
   // This ensures all diners see all orders even if they didn't submit
@@ -172,7 +208,7 @@ export default function OrderHistory({ isOpen, onClose }: OrderHistoryProps) {
           ) : (
             // Show orders in reverse order (most recent first)
             [...orders].reverse().map((order) => (
-              <OrderCard key={order.id} order={order} getDinerColor={getDinerColor} />
+              <OrderCard key={order.id} order={order} getDinerColor={getDinerColor} onReorder={handleReorder} />
             ))
           )}
         </div>

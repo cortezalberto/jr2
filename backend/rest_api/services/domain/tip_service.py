@@ -14,6 +14,7 @@ from shared.config.logging import get_logger
 from shared.infrastructure.db import safe_commit
 from shared.utils.exceptions import NotFoundError, ValidationError
 from rest_api.models.tip import Tip, TipDistribution, TipPool
+from rest_api.services.domain.audit_service import AuditService
 
 logger = get_logger(__name__)
 
@@ -26,6 +27,7 @@ class TipService:
 
     def __init__(self, db: Session):
         self._db = db
+        self._audit = AuditService(db)
 
     # -------------------------------------------------------------------------
     # Tip CRUD
@@ -63,6 +65,21 @@ class TipService:
         self._db.add(tip)
         safe_commit(self._db)
         self._db.refresh(tip)
+
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=waiter_id,
+            user_email=None,
+            action="CREATE",
+            entity_type="tip",
+            entity_id=tip.id,
+            new_values={
+                "amount_cents": amount_cents,
+                "payment_method": payment_method,
+                "waiter_id": waiter_id,
+                "table_session_id": table_session_id,
+            },
+        )
 
         logger.info(
             "Tip recorded",

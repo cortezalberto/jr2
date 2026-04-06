@@ -1,197 +1,411 @@
 /**
- * Shared WebSocket client with reconnection, heartbeat, and event subscription.
- * Used by Dashboard, pwaMenu, and pwaWaiter.
+ * BaseWebSocketClient — shared abstract WebSocket client for all frontends.
+ *
+ * Extracted from Dashboard, pwaMenu, and pwaWaiter implementations.
+ * Each frontend extends this class to provide its own URL, auth param,
+ * and optional hooks (catch-up, token refresh, etc.).
  *
  * Usage:
- *   import { createWebSocketClient } from '../../shared/websocket-client'
- *   const ws = createWebSocketClient({ baseUrl: 'ws://localhost:8001' })
- *   ws.connect('/ws/admin', token)
- *   ws.on('ROUND_SUBMITTED', handler)
+ *   class DashboardWS extends BaseWebSocketClient {
+ *     protected getUrl() { return `${WS_BASE}/ws/admin` }
+ *     protected getAuthParam() { return `token=${getAuthToken()}` }
+ *   }
  */
 
-export interface WSClientConfig {
-  baseUrl: string
-  heartbeatInterval?: number // ms, default 30000
-  heartbeatTimeout?: number // ms, default 10000
-  maxReconnectAttempts?: number // default 50
-  maxReconnectDelay?: number // ms, default 30000
-  initialReconnectDelay?: number // ms, default 1000
-  jitterFactor?: number // 0-1, default 0.3
-  nonRecoverableCodes?: number[] // default [4001, 4003, 4029]
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface WSEvent {
+  type: string
+  [key: string]: unknown
 }
 
-export type EventHandler = (event: any) => void
-export type ConnectionHandler = (connected: boolean) => void
+export type EventCallback = (event: WSEvent) => void
+export type ConnectionCallback = (connected: boolean) => void
+export type MaxReconnectCallback = () => void
 
-export interface WSClient {
-  connect(endpoint: string, token: string): void
-  disconnect(): void
-  softDisconnect(): void
-  updateToken(token: string): void
-  on(eventType: string, handler: EventHandler): () => void
-  onConnectionChange(handler: ConnectionHandler): () => void
-  isConnected(): boolean
-  getLastCloseCode(): number | null
+export interface BaseWSClientOptions {
+  /** Opt-in to automatic reconnect on page visibility change (mobile sleep). */
+  handleVisibility?: boolean
 }
 
-export function createWebSocketClient(config: WSClientConfig): WSClient {
-  const {
-    baseUrl,
-    heartbeatInterval = 30000,
-    heartbeatTimeout = 10000,
-    maxReconnectAttempts = 50,
-    maxReconnectDelay = 30000,
-    initialReconnectDelay = 1000,
-    jitterFactor = 0.3,
-    nonRecoverableCodes = [4001, 4003, 4029],
-  } = config
+// ---------------------------------------------------------------------------
+// Constants (identical across all 3 frontends)
+// ---------------------------------------------------------------------------
 
-  let socket: WebSocket | null = null
-  let currentEndpoint = ''
-  let currentToken = ''
-  let reconnectAttempts = 0
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null
-  let heartbeatTimer: ReturnType<typeof setInterval> | null = null
-  let heartbeatTimeoutTimer: ReturnType<typeof setTimeout> | null = null
-  let lastCloseCode: number | null = null
+const HEARTBEAT_INTERVAL = 30_000
+const HEARTBEAT_TIMEOUT = 10_000
+const BASE_RECONNECT_DELAY = 1_000
+const MAX_RECONNECT_DELAY = 30_000
+const JITTER_FACTOR = 0.3
+const MAX_RECONNECT_ATTEMPTS = 50
 
-  const listeners = new Map<string, Set<EventHandler>>()
-  const connectionListeners = new Set<ConnectionHandler>()
+/** Close codes that indicate a permanent error — no reconnection. */
+const NON_RECOVERABLE_CLOSE_CODES = new Set([
+  4001, // AUTH_FAILED
+  4003, // FORBIDDEN
+  4029, // RATE_LIMITED
+])
 
-  function emit(type: string, data: any) {
-    listeners.get(type)?.forEach((h) => h(data))
-    listeners.get('*')?.forEach((h) => h(data))
+// ---------------------------------------------------------------------------
+// BaseWebSocketClient
+// ---------------------------------------------------------------------------
+
+export abstract class BaseWebSocketClient {
+  // ---- socket state ----
+  protected ws: WebSocket | null = null
+  protected reconnectAttempts = 0
+  protected isIntentionalClose = false
+  protected lastEventTimestamp = 0
+
+  // ---- timers ----
+  private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null
+  private heartbeatTimeoutId: ReturnType<typeof setTimeout> | null = null
+  protected reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null
+
+  // ---- listeners ----
+  private listeners: Map<string, Set<EventCallback>> = new Map()
+  private connectionStateListeners: Set<ConnectionCallback> = new Set()
+  private maxReconnectListeners: Set<MaxReconnectCallback> = new Set()
+
+  // ---- visibility ----
+  private visibilityHandler: (() => void) | null = null
+  private readonly handleVisibility: boolean
+
+  // ---------- abstract methods (subclasses MUST implement) ----------
+
+  /** Full WebSocket URL without query string (e.g. `ws://localhost:8001/ws/admin`). */
+  protected abstract getUrl(): string
+
+  /** Query-string auth parameter (e.g. `token=xxx` or `table_token=xxx`). */
+  protected abstract getAuthParam(): string | null
+
+  // ---------- hooks (subclasses MAY override) ----------
+
+  /**
+   * Called after the socket opens.
+   * @param wasReconnect `true` when this open follows a reconnection attempt.
+   */
+  protected onOpen(_wasReconnect: boolean): void {
+    // Override for catch-up, token scheduling, etc.
   }
 
-  function notifyConnection(connected: boolean) {
-    connectionListeners.forEach((h) => h(connected))
+  /** Called when the socket closes (before reconnect scheduling). */
+  protected onClose(_code: number, _reason: string): void {
+    // Override for custom close handling.
   }
 
-  function startHeartbeat() {
-    stopHeartbeat()
-    heartbeatTimer = setInterval(() => {
-      if (socket?.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'ping' }))
-        heartbeatTimeoutTimer = setTimeout(() => {
-          socket?.close(1000, 'Heartbeat timeout')
-        }, heartbeatTimeout)
-      }
-    }, heartbeatInterval)
+  /**
+   * Called for every parsed, non-pong message.
+   * Default behaviour: notify listeners. Override to add pre-processing.
+   */
+  protected onMessage(event: WSEvent): void {
+    this.notifyListeners(event)
   }
 
-  function stopHeartbeat() {
-    if (heartbeatTimer) clearInterval(heartbeatTimer)
-    if (heartbeatTimeoutTimer) clearTimeout(heartbeatTimeoutTimer)
-    heartbeatTimer = null
-    heartbeatTimeoutTimer = null
+  // ---------- constructor ----------
+
+  constructor(options?: BaseWSClientOptions) {
+    this.handleVisibility = options?.handleVisibility ?? false
+    if (this.handleVisibility) {
+      this.setupVisibilityListener()
+    }
   }
 
-  function scheduleReconnect() {
-    if (reconnectAttempts >= maxReconnectAttempts) return
+  // =====================================================================
+  // Public API
+  // =====================================================================
 
-    const delay = Math.min(
-      initialReconnectDelay * Math.pow(2, reconnectAttempts),
-      maxReconnectDelay,
-    )
-    const jitter = delay * jitterFactor * (Math.random() * 2 - 1)
+  /**
+   * Open (or reopen) the WebSocket connection.
+   * Safe to call multiple times — a no-op if already OPEN.
+   */
+  connect(): void {
+    if (this.ws?.readyState === WebSocket.OPEN) return
 
-    reconnectTimer = setTimeout(() => {
-      reconnectAttempts++
-      doConnect()
-    }, delay + jitter)
-  }
+    const authParam = this.getAuthParam()
+    if (authParam === null) return // subclass signals "can't connect yet"
 
-  function doConnect() {
-    if (socket?.readyState === WebSocket.OPEN) return
+    this.isIntentionalClose = false
 
-    const url = `${baseUrl}${currentEndpoint}?token=${currentToken}`
-    socket = new WebSocket(url)
+    const url = `${this.getUrl()}?${authParam}`
 
-    socket.onopen = () => {
-      reconnectAttempts = 0
-      notifyConnection(true)
-      startHeartbeat()
+    try {
+      this.ws = new WebSocket(url)
+    } catch {
+      this.scheduleReconnect()
+      return
     }
 
-    socket.onmessage = (event) => {
+    this.ws.onopen = () => {
+      const wasReconnect = this.reconnectAttempts > 0
+      this.reconnectAttempts = 0
+      this.startHeartbeat()
+      this.notifyConnectionState(true)
+      this.onOpen(wasReconnect)
+    }
+
+    this.ws.onmessage = (raw) => {
       try {
-        const data = JSON.parse(event.data)
+        const data = JSON.parse(raw.data)
+
+        // Handle heartbeat pong — never propagated to listeners.
         if (data.type === 'pong') {
-          if (heartbeatTimeoutTimer) clearTimeout(heartbeatTimeoutTimer)
+          this.clearHeartbeatTimeout()
           return
         }
-        emit(data.type, data)
+
+        // Track timestamp for catch-up after reconnect.
+        this.lastEventTimestamp = Date.now() / 1000
+
+        this.onMessage(data as WSEvent)
       } catch {
-        /* ignore non-JSON */
+        // Non-JSON payload — ignore silently.
       }
     }
 
-    socket.onclose = (event) => {
-      lastCloseCode = event.code
-      stopHeartbeat()
-      notifyConnection(false)
+    this.ws.onclose = (ev) => {
+      this.ws = null
+      this.stopHeartbeat()
+      this.notifyConnectionState(false)
+      this.onClose(ev.code, ev.reason)
 
-      if (!nonRecoverableCodes.includes(event.code)) {
-        scheduleReconnect()
+      if (!this.isIntentionalClose) {
+        if (NON_RECOVERABLE_CLOSE_CODES.has(ev.code)) {
+          this.notifyMaxReconnect()
+          return
+        }
+        this.scheduleReconnect()
       }
     }
 
-    socket.onerror = () => {
-      // onclose will fire after onerror
+    this.ws.onerror = () => {
+      // onclose fires after onerror — reconnect handled there.
     }
   }
 
-  return {
-    connect(endpoint: string, token: string) {
-      currentEndpoint = endpoint
-      currentToken = token
-      reconnectAttempts = 0
-      doConnect()
-    },
+  /**
+   * Soft disconnect — closes the socket and prevents reconnection,
+   * but preserves all listeners so a subsequent `connect()` works seamlessly.
+   */
+  softDisconnect(): void {
+    this.isIntentionalClose = true
+    this.clearTimers()
 
-    disconnect() {
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      stopHeartbeat()
-      reconnectAttempts = maxReconnectAttempts // prevent reconnect
-      socket?.close(1000, 'Client disconnect')
-      socket = null
-      listeners.clear()
-      connectionListeners.clear()
-    },
+    if (this.ws) {
+      this.ws.close(1000, 'Soft disconnect')
+      this.ws = null
+    }
 
-    softDisconnect() {
-      if (reconnectTimer) clearTimeout(reconnectTimer)
-      stopHeartbeat()
-      reconnectAttempts = maxReconnectAttempts
-      socket?.close(1000, 'Soft disconnect')
-      socket = null
-      // Keep listeners
-    },
+    this.reconnectAttempts = 0
+    this.notifyConnectionState(false)
+  }
 
-    updateToken(token: string) {
-      currentToken = token
-      if (socket?.readyState === WebSocket.OPEN) {
-        this.softDisconnect()
-        reconnectAttempts = 0
-        doConnect()
+  /**
+   * Hard disconnect — closes the socket AND clears all listeners.
+   * Use on logout or full teardown.
+   */
+  disconnect(): void {
+    this.softDisconnect()
+    this.listeners.clear()
+    this.connectionStateListeners.clear()
+    this.maxReconnectListeners.clear()
+  }
+
+  /**
+   * Full cleanup including visibility listener.
+   * Call when unloading / unmounting the app.
+   */
+  destroy(): void {
+    this.disconnect()
+    this.cleanupVisibilityListener()
+  }
+
+  // ---- subscription methods ----
+
+  /**
+   * Subscribe to a specific event type (or `'*'` for all events).
+   * Returns an unsubscribe function.
+   */
+  on(eventType: string, callback: EventCallback): () => void {
+    if (!this.listeners.has(eventType)) {
+      this.listeners.set(eventType, new Set())
+    }
+    this.listeners.get(eventType)!.add(callback)
+
+    return () => {
+      const set = this.listeners.get(eventType)
+      set?.delete(callback)
+      if (set?.size === 0) this.listeners.delete(eventType)
+    }
+  }
+
+  /**
+   * Explicit unsubscribe (pwaMenu pattern).
+   */
+  off(eventType: string, callback: EventCallback): void {
+    const set = this.listeners.get(eventType)
+    set?.delete(callback)
+    if (set?.size === 0) this.listeners.delete(eventType)
+  }
+
+  /**
+   * Subscribe to connection-state changes (connected / disconnected).
+   * Returns an unsubscribe function.
+   */
+  onConnectionChange(callback: ConnectionCallback): () => void {
+    this.connectionStateListeners.add(callback)
+    return () => {
+      this.connectionStateListeners.delete(callback)
+    }
+  }
+
+  /**
+   * Subscribe to "max reconnect attempts reached" notifications.
+   * Returns an unsubscribe function.
+   */
+  onMaxReconnect(callback: MaxReconnectCallback): () => void {
+    this.maxReconnectListeners.add(callback)
+    return () => {
+      this.maxReconnectListeners.delete(callback)
+    }
+  }
+
+  /** Whether the underlying socket is currently OPEN. */
+  isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN
+  }
+
+  // =====================================================================
+  // Protected helpers (available to subclasses)
+  // =====================================================================
+
+  /** Dispatch an event to matching + wildcard listeners. */
+  protected notifyListeners(event: WSEvent): void {
+    this.listeners.get(event.type)?.forEach((cb) => cb(event))
+    this.listeners.get('*')?.forEach((cb) => cb(event))
+  }
+
+  /** Notify all connection-state listeners. */
+  protected notifyConnectionState(connected: boolean): void {
+    this.connectionStateListeners.forEach((cb) => cb(connected))
+  }
+
+  /** Notify all max-reconnect listeners. */
+  protected notifyMaxReconnect(): void {
+    this.maxReconnectListeners.forEach((cb) => cb())
+  }
+
+  // ---- heartbeat ----
+
+  protected startHeartbeat(): void {
+    this.stopHeartbeat()
+
+    this.heartbeatIntervalId = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.sendPing()
       }
-    },
+    }, HEARTBEAT_INTERVAL)
+  }
 
-    on(eventType: string, handler: EventHandler): () => void {
-      if (!listeners.has(eventType)) listeners.set(eventType, new Set())
-      listeners.get(eventType)!.add(handler)
-      return () => {
-        listeners.get(eventType)?.delete(handler)
-        if (listeners.get(eventType)?.size === 0) listeners.delete(eventType)
+  protected stopHeartbeat(): void {
+    if (this.heartbeatIntervalId) {
+      clearInterval(this.heartbeatIntervalId)
+      this.heartbeatIntervalId = null
+    }
+    this.clearHeartbeatTimeout()
+  }
+
+  /** Send a JSON `{ type: "ping" }` and arm the heartbeat-timeout timer. */
+  protected sendPing(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
+
+    try {
+      this.ws.send(JSON.stringify({ type: 'ping' }))
+
+      this.heartbeatTimeoutId = setTimeout(() => {
+        this.ws?.close(4000, 'Heartbeat timeout')
+      }, HEARTBEAT_TIMEOUT)
+    } catch {
+      // Send failed — onclose will trigger reconnect.
+    }
+  }
+
+  private clearHeartbeatTimeout(): void {
+    if (this.heartbeatTimeoutId) {
+      clearTimeout(this.heartbeatTimeoutId)
+      this.heartbeatTimeoutId = null
+    }
+  }
+
+  // ---- reconnect ----
+
+  protected scheduleReconnect(): void {
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId)
+      this.reconnectTimeoutId = null
+    }
+
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.notifyMaxReconnect()
+      return
+    }
+
+    this.reconnectAttempts++
+
+    // Exponential backoff capped at MAX_RECONNECT_DELAY, plus random jitter.
+    const exponentialDelay = Math.min(
+      BASE_RECONNECT_DELAY * Math.pow(2, this.reconnectAttempts - 1),
+      MAX_RECONNECT_DELAY,
+    )
+    const jitter = exponentialDelay * JITTER_FACTOR * Math.random()
+    const delay = Math.round(exponentialDelay + jitter)
+
+    this.reconnectTimeoutId = setTimeout(() => {
+      this.reconnectTimeoutId = null
+      this.connect()
+    }, delay)
+  }
+
+  // ---- timers cleanup ----
+
+  protected clearTimers(): void {
+    this.stopHeartbeat()
+
+    if (this.reconnectTimeoutId) {
+      clearTimeout(this.reconnectTimeoutId)
+      this.reconnectTimeoutId = null
+    }
+  }
+
+  // ---- visibility ----
+
+  protected setupVisibilityListener(): void {
+    if (typeof document === 'undefined') return
+
+    this.cleanupVisibilityListener()
+
+    this.visibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        if (!this.isIntentionalClose && !this.isConnected()) {
+          // Connection lost during sleep — reconnect.
+          this.reconnectAttempts = 1 // ensures onOpen sees wasReconnect=true
+          this.connect()
+        } else if (this.isConnected()) {
+          // Connection may be stale — send ping to verify.
+          this.sendPing()
+        }
       }
-    },
+    }
 
-    onConnectionChange(handler: ConnectionHandler): () => void {
-      connectionListeners.add(handler)
-      return () => connectionListeners.delete(handler)
-    },
+    document.addEventListener('visibilitychange', this.visibilityHandler)
+  }
 
-    isConnected: () => socket?.readyState === WebSocket.OPEN,
-    getLastCloseCode: () => lastCloseCode,
+  protected cleanupVisibilityListener(): void {
+    if (this.visibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+      this.visibilityHandler = null
+    }
   }
 }

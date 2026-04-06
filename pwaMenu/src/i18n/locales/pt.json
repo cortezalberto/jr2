@@ -69,7 +69,9 @@
     "add": "Adicionar",
     "adding": "Adicionando...",
     "added": "Adicionado",
-    "addedToCart": "{{quantity}} {{product}} adicionado ao carrinho"
+    "addedToCart": "{{quantity}} {{product}} adicionado ao carrinho",
+    "soldOut": "Esgotado",
+    "unavailableMessage": "Este produto não está disponível no momento"
   },
   "bottomNav": {
     "mainNav": "Navegação principal",
@@ -82,7 +84,8 @@
     "round_plural": "rodadas",
     "noOrders": "Sem pedidos",
     "askForBill": "Pedir a conta",
-    "aiAssistant": "Perguntar à IA sobre o menu"
+    "aiAssistant": "Perguntar à IA sobre o menu",
+    "estimatedWait": "Tempo estimado"
   },
   "orderSuccess": {
     "orderSent": "Pedido enviado!",
@@ -102,6 +105,7 @@
     "totalConsumed": "Total consumido",
     "itemsInRounds": "{{items}} items em {{rounds}} {{roundWord}}",
     "close": "Fechar histórico",
+    "reorder": "Repetir pedido",
     "status": {
       "submitted": "Enviado",
       "confirmed": "Confirmado",
@@ -124,7 +128,12 @@
   "menu": {
     "title": "Menu",
     "selectLanguage": "Selecionar idioma",
-    "languageHelp": "Você pode mudar o idioma a qualquer momento"
+    "languageHelp": "Você pode mudar o idioma a qualquer momento",
+    "appearance": "Aparência",
+    "lightMode": "Modo Claro",
+    "darkMode": "Modo Escuro",
+    "switchToLight": "Mudar para modo claro",
+    "switchToDark": "Mudar para modo escuro"
   },
   "closeTable": {
     "title": "Pedir a conta",
@@ -477,5 +486,17 @@
     "pendingNote": "Você receberá uma notificação quando o pagamento for confirmado",
     "retry": "Tentar novamente",
     "cancel": "Cancelar e voltar"
+  },
+  "feedback": {
+    "title": "Sua opinião importa",
+    "selectRating": "Selecione uma avaliação",
+    "stars": "estrelas",
+    "commentPlaceholder": "Comentário opcional...",
+    "submit": "Enviar opinião",
+    "sending": "Enviando...",
+    "thanks": "Obrigado pela sua opinião!",
+    "close": "Fechar",
+    "error": "Não foi possível enviar. Tente novamente.",
+    "leaveReview": "Deixar opinião"
   }
 }

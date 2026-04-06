@@ -1,5 +1,6 @@
 import { useMemo, useCallback, useActionState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
@@ -39,7 +40,8 @@ const initialFormData: PromotionTypeFormData = {
 
 export function PromotionTypesPage() {
   // REACT 19: Document metadata
-  useDocumentTitle('Tipos de Promoción')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.promotionTypes.title'))
 
   const promotionTypes = usePromotionTypeStore(selectPromotionTypes)
   const addPromotionType = usePromotionTypeStore((s) => s.addPromotionType)
@@ -87,15 +89,15 @@ export function PromotionTypesPage() {
       try {
         if (modal.selectedItem) {
           updatePromotionType(modal.selectedItem.id, data)
-          toast.success('Tipo de promocion actualizado correctamente')
+          toast.success(t('pages.promotionTypes.typeUpdated'))
         } else {
           addPromotionType(data)
-          toast.success('Tipo de promocion creado correctamente')
+          toast.success(t('pages.promotionTypes.typeCreated'))
         }
         return { isSuccess: true, message: 'Guardado correctamente' }
       } catch (error) {
         const message = handleError(error, 'PromotionTypesPage.submitAction')
-        toast.error(`Error al guardar el tipo de promocion: ${message}`)
+        toast.error(`${t('pages.promotionTypes.errorSaving')}: ${message}`)
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -134,16 +136,16 @@ export function PromotionTypesPage() {
       const result = deletePromotionTypeWithCascade(deleteDialog.item.id)
 
       if (!result.success) {
-        toast.error(result.error || 'Error al eliminar el tipo de promocion')
+        toast.error(result.error || t('pages.promotionTypes.errorDeleting'))
         deleteDialog.close()
         return
       }
 
-      toast.success('Tipo de promocion eliminado correctamente')
+      toast.success(t('pages.promotionTypes.typeDeleted'))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'PromotionTypesPage.handleDelete')
-      toast.error(`Error al eliminar el tipo de promocion: ${message}`)
+      toast.error(`${t('pages.promotionTypes.errorDeleting')}: ${message}`)
     }
   }, [deleteDialog])
 
@@ -151,7 +153,7 @@ export function PromotionTypesPage() {
     () => [
       {
         key: 'icon',
-        label: 'Icono',
+        label: t('forms.labels.icon'),
         width: 'w-20',
         render: (item) => (
           <span className="text-2xl" role="img" aria-label={`Icono de ${item.name}`}>
@@ -161,7 +163,7 @@ export function PromotionTypesPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item) => (
           <div>
             <span className="font-medium">{item.name}</span>
@@ -175,22 +177,22 @@ export function PromotionTypesPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         width: 'w-24',
         render: (item) =>
           item.is_active !== false ? (
             <Badge variant="success">
-              <span className="sr-only">Estado:</span> Activo
+              <span className="sr-only">Estado:</span> {t('common.active')}
             </Badge>
           ) : (
             <Badge variant="danger">
-              <span className="sr-only">Estado:</span> Inactivo
+              <span className="sr-only">Estado:</span> {t('common.inactive')}
             </Badge>
           ),
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('common.actions'),
         width: 'w-28',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -230,8 +232,8 @@ export function PromotionTypesPage() {
 
   return (
     <PageContainer
-      title="Tipos de Promocion"
-      description="Administra los tipos de promociones disponibles"
+      title={t('pages.promotionTypes.title')}
+      description={t('pages.promotionTypes.description')}
       helpContent={helpContent.promotionTypes}
       actions={
         canCreate ? (
@@ -245,8 +247,8 @@ export function PromotionTypesPage() {
         <Table
           data={paginatedTypes}
           columns={columns}
-          emptyMessage="No hay tipos de promocion. Crea uno para comenzar."
-          ariaLabel="Lista de tipos de promocion"
+          emptyMessage={t('pages.promotionTypes.noTypes')}
+          ariaLabel={t('pages.promotionTypes.title')}
         />
         <Pagination
           currentPage={currentPage}
@@ -261,14 +263,14 @@ export function PromotionTypesPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Tipo de Promocion' : 'Nuevo Tipo de Promocion'}
+        title={modal.selectedItem ? t('pages.promotionTypes.editType') : t('pages.promotionTypes.newType')}
         footer={
           <>
             <Button variant="ghost" onClick={modal.close}>
               Cancelar
             </Button>
             <Button type="submit" form="promotion-type-form" isLoading={isPending}>
-              {modal.selectedItem ? 'Guardar' : 'Crear'}
+              {modal.selectedItem ? t('common.save') : t('common.create')}
             </Button>
           </>
         }
@@ -276,7 +278,7 @@ export function PromotionTypesPage() {
         <form id="promotion-type-form" action={formAction} className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <HelpButton
-              title="Formulario de Tipo de Promocion"
+              title={t('pages.promotionTypes.formTitle')}
               size="sm"
               content={
                 <div className="space-y-3">
@@ -306,11 +308,11 @@ export function PromotionTypesPage() {
                 </div>
               }
             />
-            <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+            <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
           </div>
 
           <Input
-            label="Nombre"
+            label={t('common.name')}
             name="name"
             value={modal.formData.name}
             onChange={(e) =>
@@ -321,7 +323,7 @@ export function PromotionTypesPage() {
           />
 
           <Input
-            label="Descripcion"
+            label={t('common.description')}
             name="description"
             value={modal.formData.description}
             onChange={(e) =>
@@ -331,7 +333,7 @@ export function PromotionTypesPage() {
           />
 
           <Input
-            label="Icono (emoji)"
+            label={t('pages.promotionTypes.iconEmoji')}
             name="icon"
             value={modal.formData.icon}
             onChange={(e) =>
@@ -341,7 +343,7 @@ export function PromotionTypesPage() {
           />
 
           <Toggle
-            label="Tipo activo"
+            label={t('pages.promotionTypes.activeType')}
             name="is_active"
             checked={modal.formData.is_active}
             onChange={(e) =>
@@ -357,9 +359,9 @@ export function PromotionTypesPage() {
         isOpen={deleteDialog.isOpen}
         onClose={deleteDialog.close}
         onConfirm={handleDelete}
-        title="Eliminar Tipo de Promocion"
+        title={t('pages.promotionTypes.deleteType')}
         message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-        confirmLabel="Eliminar"
+        confirmLabel={t('common.delete')}
       >
         {deleteDialog.item && (() => {
           const preview = getPromotionTypePreview(deleteDialog.item.id)
@@ -367,7 +369,7 @@ export function PromotionTypesPage() {
             <CascadePreviewList preview={preview} />
           ) : (
             <p className="mt-3 text-sm text-[var(--text-muted)]">
-              No hay promociones usando este tipo.
+              {t('pages.promotionTypes.noPromotionsUsingType')}
             </p>
           )
         })()}

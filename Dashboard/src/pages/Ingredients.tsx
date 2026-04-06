@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Package } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal, useConfirmDialog, usePagination } from '../hooks'
@@ -39,7 +40,8 @@ const initialSubFormData: SubIngredientFormData = {
 }
 
 export function IngredientsPage() {
-  useDocumentTitle('Ingredientes')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.ingredients.title'))
 
   const ingredients = useIngredientStore(selectIngredients)
   const groups = useIngredientStore(selectIngredientGroups)
@@ -120,17 +122,17 @@ export function IngredientsPage() {
       e.preventDefault()
 
       if (!modal.formData.name.trim()) {
-        toast.error('El nombre es obligatorio')
+        toast.error(t('pages.ingredients.nameRequired'))
         return
       }
 
       try {
         if (modal.selectedItem) {
           await updateIngredientAsync(modal.selectedItem.id, modal.formData)
-          toast.success('Ingrediente actualizado correctamente')
+          toast.success(t('pages.ingredients.ingredientUpdated'))
         } else {
           await createIngredientAsync(modal.formData)
-          toast.success('Ingrediente creado correctamente')
+          toast.success(t('pages.ingredients.ingredientCreated'))
         }
         modal.close()
       } catch (error) {
@@ -147,7 +149,7 @@ export function IngredientsPage() {
 
     try {
       await deleteIngredientAsync(deleteDialog.item.id)
-      toast.success('Ingrediente eliminado correctamente')
+      toast.success(t('pages.ingredients.ingredientDeleted'))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'IngredientsPage.handleDelete')
@@ -190,13 +192,13 @@ export function IngredientsPage() {
       if (!subIngredientModal.ingredientId) return
 
       if (!subFormData.name.trim()) {
-        toast.error('El nombre es obligatorio')
+        toast.error(t('pages.ingredients.nameRequired'))
         return
       }
 
       try {
         await createSubIngredientAsync(subIngredientModal.ingredientId, subFormData)
-        toast.success('Sub-ingrediente creado correctamente')
+        toast.success(t('pages.ingredients.subIngredientCreated'))
         closeSubIngredientModal()
         // Expand the row to show the new sub-ingredient
         setExpandedRows((prev) => new Set(prev).add(subIngredientModal.ingredientId!))
@@ -212,7 +214,7 @@ export function IngredientsPage() {
     async (ingredientId: string, subIngredientId: number) => {
       try {
         await deleteSubIngredientAsync(ingredientId, subIngredientId)
-        toast.success('Sub-ingrediente eliminado')
+        toast.success(t('pages.ingredients.subIngredientDeleted'))
       } catch (error) {
         const message = handleError(error, 'IngredientsPage.handleDeleteSubIngredient')
         toast.error(`Error: ${message}`)
@@ -224,7 +226,7 @@ export function IngredientsPage() {
   // Group options for select
   const groupOptions = useMemo(
     () => [
-      { value: '', label: 'Todos los grupos' },
+      { value: '', label: t('pages.ingredients.allGroups') },
       ...groups.map((g) => ({ value: g.id, label: g.name })),
     ],
     [groups]
@@ -244,7 +246,7 @@ export function IngredientsPage() {
                 toggleRow(item.id)
               }}
               className="p-1 hover:bg-[var(--bg-tertiary)] rounded"
-              aria-label={expandedRows.has(item.id) ? 'Colapsar' : 'Expandir'}
+              aria-label={expandedRows.has(item.id) ? t('pages.ingredients.collapse') : t('pages.ingredients.expand')}
             >
               {expandedRows.has(item.id) ? (
                 <ChevronDown className="w-4 h-4" />
@@ -258,7 +260,7 @@ export function IngredientsPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('pages.ingredients.nameCol'),
         render: (item) => (
           <div className="flex items-center gap-2">
             <span className="font-medium">{item.name}</span>
@@ -272,14 +274,14 @@ export function IngredientsPage() {
       },
       {
         key: 'group_name',
-        label: 'Grupo',
+        label: t('pages.ingredients.groupCol'),
         render: (item) => (
           <span className="text-[var(--text-tertiary)]">{item.group_name || '-'}</span>
         ),
       },
       {
         key: 'sub_count',
-        label: 'Sub-ingredientes',
+        label: t('pages.ingredients.subIngredientsCol'),
         width: 'w-32',
         render: (item) =>
           item.is_processed ? (
@@ -290,18 +292,18 @@ export function IngredientsPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('pages.ingredients.statusCol'),
         width: 'w-24',
         render: (item) =>
           item.is_active ? (
-            <Badge variant="success">Activo</Badge>
+            <Badge variant="success">{t('pages.ingredients.active')}</Badge>
           ) : (
-            <Badge variant="danger">Inactivo</Badge>
+            <Badge variant="danger">{t('pages.ingredients.inactive')}</Badge>
           ),
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('pages.ingredients.actionsCol'),
         width: 'w-36',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -377,7 +379,7 @@ export function IngredientsPage() {
             <tr className="bg-[var(--bg-tertiary)]/30">
               <td colSpan={columns.length} className="px-4 py-2 pl-12">
                 <div className="space-y-1">
-                  <p className="text-xs text-[var(--text-muted)] mb-2">Sub-ingredientes de {item.name}:</p>
+                  <p className="text-xs text-[var(--text-muted)] mb-2">{t('pages.ingredients.subIngredientsOf', { name: item.name })}:</p>
                   {item.sub_ingredients.map((sub) => (
                     <div
                       key={sub.id}
@@ -416,8 +418,8 @@ export function IngredientsPage() {
 
   return (
     <PageContainer
-      title="Ingredientes"
-      description="Administra los ingredientes para los productos del menu"
+      title={t('pages.ingredients.title')}
+      description={t('pages.ingredients.description')}
       actions={
         <Button onClick={() => modal.openCreate()} leftIcon={<Plus className="w-4 h-4" />}>
           Nuevo Ingrediente
@@ -428,14 +430,14 @@ export function IngredientsPage() {
       <div className="mb-4 flex items-center gap-4">
         <div className="w-64">
           <Select
-            label="Filtrar por grupo"
+            label={t('pages.ingredients.filterByGroup')}
             value={selectedGroupId}
             onChange={(e) => setSelectedGroupId(e.target.value)}
             options={groupOptions}
           />
         </div>
         <div className="text-sm text-[var(--text-muted)]">
-          {filteredIngredients.length} ingrediente(s)
+          {filteredIngredients.length} {t('pages.ingredients.ingredientCount')}
         </div>
       </div>
 
@@ -447,7 +449,7 @@ export function IngredientsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full" aria-label="Lista de ingredientes">
+              <table className="w-full" aria-label={t('pages.ingredients.listLabel')}>
                 <thead>
                   <tr className="border-b border-[var(--border-default)] text-left text-sm text-[var(--text-tertiary)]">
                     {columns.map((col) => (
@@ -485,7 +487,7 @@ export function IngredientsPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Ingrediente' : 'Nuevo Ingrediente'}
+        title={modal.selectedItem ? t('pages.ingredients.editIngredient') : t('pages.ingredients.newIngredient')}
         size="md"
         footer={
           <>
@@ -493,35 +495,35 @@ export function IngredientsPage() {
               Cancelar
             </Button>
             <Button type="submit" form="ingredient-form" isLoading={isLoading}>
-              {modal.selectedItem ? 'Guardar' : 'Crear'}
+              {modal.selectedItem ? t('common.save') : t('common.create')}
             </Button>
           </>
         }
       >
         <form id="ingredient-form" onSubmit={handleSubmit} className="space-y-4">
           <Input
-            label="Nombre"
+            label={t('pages.ingredients.nameCol')}
             name="name"
             value={modal.formData.name}
             onChange={(e) =>
               modal.setFormData((prev) => ({ ...prev, name: e.target.value }))
             }
-            placeholder="Ej: Tomate, Queso Mozzarella, Salsa BBQ"
+            placeholder={t('pages.ingredients.namePlaceholder')}
             required
           />
 
           <Input
-            label="Descripcion"
+            label={t('pages.ingredients.descriptionLabel')}
             name="description"
             value={modal.formData.description || ''}
             onChange={(e) =>
               modal.setFormData((prev) => ({ ...prev, description: e.target.value }))
             }
-            placeholder="Descripcion opcional del ingrediente"
+            placeholder={t('pages.ingredients.descriptionPlaceholder')}
           />
 
           <Select
-            label="Grupo"
+            label={t('pages.ingredients.groupLabel')}
             value={modal.formData.group_id ? String(modal.formData.group_id) : ''}
             onChange={(e) =>
               modal.setFormData((prev) => ({
@@ -530,13 +532,13 @@ export function IngredientsPage() {
               }))
             }
             options={[
-              { value: '', label: 'Sin grupo' },
+              { value: '', label: t('pages.ingredients.noGroup') },
               ...groups.map((g) => ({ value: g.id, label: g.name })),
             ]}
           />
 
           <Toggle
-            label="Es procesado (tiene sub-ingredientes)"
+            label={t('pages.ingredients.isProcessed')}
             name="is_processed"
             checked={modal.formData.is_processed}
             onChange={(e) =>
@@ -554,7 +556,7 @@ export function IngredientsPage() {
       <Modal
         isOpen={subIngredientModal.isOpen}
         onClose={closeSubIngredientModal}
-        title={`Agregar sub-ingrediente a ${subIngredientModal.ingredientName}`}
+        title={t('pages.ingredients.addSubIngredientTo', { name: subIngredientModal.ingredientName })}
         size="sm"
         footer={
           <>
@@ -569,24 +571,24 @@ export function IngredientsPage() {
       >
         <form id="sub-ingredient-form" onSubmit={handleSubIngredientSubmit} className="space-y-4">
           <Input
-            label="Nombre"
+            label={t('pages.ingredients.nameCol')}
             name="sub_name"
             value={subFormData.name}
             onChange={(e) =>
               setSubFormData((prev) => ({ ...prev, name: e.target.value }))
             }
-            placeholder="Ej: Tomate, Azucar, Vinagre"
+            placeholder={t('pages.ingredients.subNamePlaceholder')}
             required
           />
 
           <Input
-            label="Descripcion"
+            label={t('pages.ingredients.descriptionLabel')}
             name="sub_description"
             value={subFormData.description || ''}
             onChange={(e) =>
               setSubFormData((prev) => ({ ...prev, description: e.target.value }))
             }
-            placeholder="Descripcion opcional"
+            placeholder={t('pages.ingredients.subDescriptionPlaceholder')}
           />
         </form>
       </Modal>
@@ -596,13 +598,13 @@ export function IngredientsPage() {
         isOpen={deleteDialog.isOpen}
         onClose={deleteDialog.close}
         onConfirm={handleDelete}
-        title="Eliminar Ingrediente"
-        message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-        confirmLabel="Eliminar"
+        title={t('pages.ingredients.deleteConfirmTitle')}
+        message={t('pages.ingredients.deleteConfirmMessage', { name: deleteDialog.item?.name })}
+        confirmLabel={t('common.delete')}
       >
         {deleteDialog.item?.sub_ingredients && deleteDialog.item.sub_ingredients.length > 0 && (
           <p className="mt-3 text-sm text-[var(--warning-icon)]">
-            Este ingrediente tiene {deleteDialog.item.sub_ingredients.length} sub-ingrediente(s) que tambien seran eliminados.
+            {t('pages.ingredients.deleteSubWarning', { count: deleteDialog.item.sub_ingredients.length })}
           </p>
         )}
       </ConfirmDialog>

@@ -22,7 +22,14 @@ from shared.infrastructure.events import (
     ENTITY_DELETED,
     CASCADE_DELETE,
 )
+from shared.infrastructure.cache.menu_cache import invalidate_all_menu_caches
 from shared.config.logging import get_logger
+
+# Entity types that affect the public menu and require cache invalidation
+_MENU_AFFECTING_ENTITIES = frozenset({
+    "product", "category", "subcategory",
+    "branch_product", "allergen",
+})
 
 # TYPE_CHECKING import to avoid runtime circular dependency
 if TYPE_CHECKING:
@@ -109,6 +116,10 @@ async def _publish_event(
         affected_entities: Optional list of child entities affected by cascade delete
         actor_user_id: Optional ID of the user who triggered the action
     """
+    # Invalidate menu cache if this change affects menu-visible data
+    if entity_type in _MENU_AFFECTING_ENTITIES:
+        invalidate_all_menu_caches()
+
     try:
         # CRIT-01 FIX: Use pooled connection without closing it
         # The pool manages connection lifecycle - we should NOT close pooled connections

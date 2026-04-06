@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout'
 import { Card, Badge, Button, Select } from '../components/ui'
@@ -10,10 +11,12 @@ import { logger } from '../utils/logger'
 
 type OrderStatus = 'SUBMITTED' | 'IN_KITCHEN' | 'READY'
 
-const statusConfig: Record<OrderStatus, { label: string; variant: 'warning' | 'info' | 'success'; icon: React.ReactNode }> = {
-  SUBMITTED: { label: 'Nuevo', variant: 'warning', icon: <Package className="w-4 h-4" /> },
-  IN_KITCHEN: { label: 'En cocina', variant: 'info', icon: <ChefHat className="w-4 h-4" /> },
-  READY: { label: 'Listo', variant: 'success', icon: <CheckCircle2 className="w-4 h-4" /> },
+function getOrderStatusConfig(t: (key: string) => string): Record<OrderStatus, { label: string; variant: 'warning' | 'info' | 'success'; icon: React.ReactNode }> {
+  return {
+    SUBMITTED: { label: t('pages.orders.statusNew'), variant: 'warning', icon: <Package className="w-4 h-4" /> },
+    IN_KITCHEN: { label: t('pages.orders.statusInKitchen'), variant: 'info', icon: <ChefHat className="w-4 h-4" /> },
+    READY: { label: t('pages.orders.statusReady'), variant: 'success', icon: <CheckCircle2 className="w-4 h-4" /> },
+  }
 }
 
 function formatTime(dateStr: string | null): string {
@@ -36,6 +39,8 @@ interface OrderCardProps {
 }
 
 function OrderCard({ order, onStatusChange, isUpdating }: OrderCardProps) {
+  const { t } = useTranslation()
+  const statusConfig = getOrderStatusConfig(t)
   const config = statusConfig[order.status as OrderStatus]
   const elapsed = getElapsedMinutes(order.submitted_at)
   const isUrgent = elapsed > 15 && order.status !== 'READY'
@@ -119,7 +124,7 @@ function OrderCard({ order, onStatusChange, isUpdating }: OrderCardProps) {
           size="lg"
           leftIcon={nextStatus === 'IN_KITCHEN' ? <ChefHat className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
         >
-          Marcar como {nextStatusLabel}
+          {t('pages.kitchen.markAs')} {nextStatusLabel}
         </Button>
       )}
     </Card>
@@ -127,7 +132,8 @@ function OrderCard({ order, onStatusChange, isUpdating }: OrderCardProps) {
 }
 
 export function OrdersPage() {
-  useDocumentTitle('Pedidos')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.orders.title'))
 
   const branches = useBranchStore(selectBranches)
   const [orders, setOrders] = useState<ActiveOrder[]>([])
@@ -160,7 +166,7 @@ export function OrdersPage() {
       setStats(statsData)
     } catch (err) {
       if (!isMountedRef.current) return
-      setError('Error al cargar los pedidos')
+      setError(t('pages.orders.errorLoading'))
       // QA-AUDIT: Use static logger import
       logger.error('OrdersPage', 'Fetch error', err)
     } finally {
@@ -232,7 +238,7 @@ export function OrdersPage() {
       const newStats = await ordersAPI.getStats(branchId)
       setStats(newStats)
     } catch (err) {
-      setError('Error al actualizar el estado')
+      setError(t('pages.orders.errorUpdating'))
       // QA-AUDIT: Use static logger import
       logger.error('OrdersPage', 'Update error', err)
     } finally {
@@ -246,21 +252,21 @@ export function OrdersPage() {
   const readyOrders = orders.filter((o) => o.status === 'READY')
 
   const branchOptions = [
-    { value: '', label: 'Todas las sucursales' },
+    { value: '', label: t('pages.orders.allBranches') },
     ...branches.map((b) => ({ value: String(b.id), label: b.name })),
   ]
 
   const statusOptions = [
-    { value: '', label: 'Todos los estados' },
-    { value: 'SUBMITTED', label: 'Nuevos' },
-    { value: 'IN_KITCHEN', label: 'En cocina' },
-    { value: 'READY', label: 'Listos' },
+    { value: '', label: t('pages.orders.allStatuses') },
+    { value: 'SUBMITTED', label: t('pages.orders.new') },
+    { value: 'IN_KITCHEN', label: t('pages.orders.statusInKitchen') },
+    { value: 'READY', label: t('pages.orders.ready') },
   ]
 
   return (
     <PageContainer
-      title="Pedidos"
-      description="Gestiona los pedidos activos en tiempo real"
+      title={t('pages.orders.title')}
+      description={t('pages.orders.descriptionRealtime')}
       actions={
         <div className="flex items-center gap-4">
           {/* Connection status indicator */}
@@ -268,12 +274,12 @@ export function OrdersPage() {
             {isWsConnected ? (
               <>
                 <Wifi className="w-4 h-4 text-[var(--success-icon)]" />
-                <span className="text-sm text-[var(--success-icon)]">En vivo</span>
+                <span className="text-sm text-[var(--success-icon)]">{t('pages.kitchen.live')}</span>
               </>
             ) : (
               <>
                 <WifiOff className="w-4 h-4 text-[var(--warning-icon)]" />
-                <span className="text-sm text-[var(--warning-icon)]">Reconectando...</span>
+                <span className="text-sm text-[var(--warning-icon)]">{t('pages.kitchen.reconnecting')}</span>
               </>
             )}
           </div>
@@ -296,7 +302,7 @@ export function OrdersPage() {
               <Package className="w-5 h-5 text-[var(--primary-500)]" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-[var(--text-tertiary)] text-sm">Total Activos</p>
+              <p className="text-[var(--text-tertiary)] text-sm">{t('pages.orders.totalActive')}</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">{stats?.total_active ?? '-'}</p>
             </div>
           </div>
@@ -308,7 +314,7 @@ export function OrdersPage() {
               <Clock className="w-5 h-5 text-[var(--warning-icon)]" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-[var(--text-tertiary)] text-sm">Pendientes</p>
+              <p className="text-[var(--text-tertiary)] text-sm">{t('pages.orders.pending')}</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">{stats?.pending ?? '-'}</p>
             </div>
           </div>
@@ -320,7 +326,7 @@ export function OrdersPage() {
               <ChefHat className="w-5 h-5 text-[var(--info-icon)]" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-[var(--text-tertiary)] text-sm">En Cocina</p>
+              <p className="text-[var(--text-tertiary)] text-sm">{t('pages.orders.inKitchen')}</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">{stats?.in_kitchen ?? '-'}</p>
             </div>
           </div>
@@ -332,7 +338,7 @@ export function OrdersPage() {
               <CheckCircle2 className="w-5 h-5 text-[var(--success-icon)]" aria-hidden="true" />
             </div>
             <div>
-              <p className="text-[var(--text-tertiary)] text-sm">Listos</p>
+              <p className="text-[var(--text-tertiary)] text-sm">{t('pages.orders.ready')}</p>
               <p className="text-2xl font-bold text-[var(--text-primary)]">{stats?.ready ?? '-'}</p>
             </div>
           </div>
@@ -344,7 +350,7 @@ export function OrdersPage() {
         <div className="w-64">
           <Select
             id="branch-filter"
-            label="Sucursal"
+            label={t('forms.labels.branch')}
             options={branchOptions}
             value={selectedBranch}
             onChange={(e) => setSelectedBranch(e.target.value)}
@@ -353,7 +359,7 @@ export function OrdersPage() {
         <div className="w-48">
           <Select
             id="status-filter"
-            label="Estado"
+            label={t('common.status')}
             options={statusOptions}
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -371,14 +377,14 @@ export function OrdersPage() {
         <div className="flex items-center justify-center h-64" role="status">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-[var(--primary-500)] border-t-transparent rounded-full animate-spin" />
-            <span className="text-sm text-[var(--text-tertiary)]">Cargando pedidos...</span>
+            <span className="text-sm text-[var(--text-tertiary)]">{t('pages.orders.loadingOrders')}</span>
           </div>
         </div>
       ) : orders.length === 0 ? (
         <Card className="p-8 text-center">
           <Package className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
-          <p className="text-[var(--text-tertiary)]">No hay pedidos activos</p>
-          <p className="text-[var(--text-muted)] text-sm mt-1">Los nuevos pedidos apareceran aqui</p>
+          <p className="text-[var(--text-tertiary)]">{t('pages.orders.noActiveOrders')}</p>
+          <p className="text-[var(--text-muted)] text-sm mt-1">{t('pages.orders.newOrdersWillAppear')}</p>
         </Card>
       ) : statusFilter ? (
         // Single column when filtering by status
@@ -398,13 +404,13 @@ export function OrdersPage() {
           {/* Nuevos */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Nuevos</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.orders.newOrders')}</h2>
               <Badge variant="warning">{submittedOrders.length}</Badge>
             </div>
             <div className="space-y-4">
               {submittedOrders.length === 0 ? (
                 <Card className="text-center text-[var(--text-muted)] py-8">
-                  No hay pedidos nuevos
+                  {t('pages.orders.noNewOrders')}
                 </Card>
               ) : (
                 submittedOrders.map((order) => (
@@ -422,13 +428,13 @@ export function OrdersPage() {
           {/* En Cocina */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">En Cocina</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.orders.inKitchen')}</h2>
               <Badge variant="info">{inKitchenOrders.length}</Badge>
             </div>
             <div className="space-y-4">
               {inKitchenOrders.length === 0 ? (
                 <Card className="text-center text-[var(--text-muted)] py-8">
-                  No hay pedidos en preparacion
+                  {t('pages.orders.noOrdersInPreparation')}
                 </Card>
               ) : (
                 inKitchenOrders.map((order) => (
@@ -446,13 +452,13 @@ export function OrdersPage() {
           {/* Listos */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Listos</h2>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.orders.ready')}</h2>
               <Badge variant="success">{readyOrders.length}</Badge>
             </div>
             <div className="space-y-4">
               {readyOrders.length === 0 ? (
                 <Card className="text-center text-[var(--text-muted)] py-8">
-                  No hay pedidos listos
+                  {t('pages.orders.noReadyOrders')}
                 </Card>
               ) : (
                 readyOrders.map((order) => (

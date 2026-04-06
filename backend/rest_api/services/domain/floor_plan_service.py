@@ -324,7 +324,7 @@ class FloorPlanService:
             live_tables.append({
                 "floor_plan_table_id": fpt.id,
                 "table_id": fpt.table_id,
-                "table_number": table.number,
+                "table_number": table.code,
                 "capacity": table.capacity,
                 "x": fpt.x,
                 "y": fpt.y,
@@ -332,7 +332,7 @@ class FloorPlanService:
                 "height": fpt.height,
                 "rotation": fpt.rotation,
                 "shape": fpt.shape,
-                "label": fpt.label or str(table.number),
+                "label": fpt.label or table.code,
                 "status": status,
                 "elapsed_minutes": elapsed_minutes,
             })
@@ -374,7 +374,7 @@ class FloorPlanService:
         if sector_id:
             stmt = stmt.where(Table.sector_id == sector_id)
 
-        tables = self._db.scalars(stmt.order_by(Table.number)).all()
+        tables = self._db.scalars(stmt.order_by(Table.code)).all()
         if not tables:
             raise ValidationError(
                 "No hay mesas disponibles para generar el plano.",
@@ -405,7 +405,7 @@ class FloorPlanService:
                 "height": float(table_height),
                 "rotation": 0.0,
                 "shape": "RECTANGLE",
-                "label": str(table.number),
+                "label": table.code,
             })
 
         # Update plan dimensions to fit the grid

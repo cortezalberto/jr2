@@ -483,6 +483,8 @@ export type WSEventType =
   | 'CART_ITEM_REMOVED'
   | 'CART_CLEARED'
   | 'CART_SYNC'
+  // Product availability
+  | 'PRODUCT_AVAILABILITY_CHANGED'
 
 // =============================================================================
 // Shared Cart Types (Real-time sync)

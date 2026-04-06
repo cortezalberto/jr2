@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useActionState, useEffect } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout'
 import {
@@ -54,7 +55,8 @@ const initialFormData: PromotionFormData = {
 
 export function PromotionsPage() {
   // REACT 19: Document metadata
-  useDocumentTitle('Promociones')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.promotions.title'))
 
   const promotions = usePromotionStore(selectPromotions)
   const fetchPromotions = usePromotionStore((s) => s.fetchPromotions)
@@ -111,15 +113,15 @@ export function PromotionsPage() {
       try {
         if (selectedPromotion) {
           await updatePromotionAsync(selectedPromotion.id, data)
-          toast.success('Promocion actualizada correctamente')
+          toast.success(t('pages.promotions.promotionUpdated'))
         } else {
           await createPromotionAsync(data)
-          toast.success('Promocion creada correctamente')
+          toast.success(t('pages.promotions.promotionCreated'))
         }
         return { isSuccess: true }
       } catch (error) {
         const message = handleError(error, 'PromotionsPage.submitAction')
-        toast.error(`Error al guardar la promocion: ${message}`)
+        toast.error(`${t('pages.promotions.errorSaving')}: ${message}`)
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -170,15 +172,15 @@ export function PromotionsPage() {
   const getBranchNames = useCallback(
     (branchIds: string[]) => {
       if (branchIds.length === branches.length) {
-        return 'Todas'
+        return t('pages.promotions.allBranches')
       }
       if (branchIds.length === 0) {
-        return 'Ninguna'
+        return t('pages.promotions.noBranches')
       }
       if (branchIds.length <= 2) {
         return branchIds.map((id) => branchMap.get(id) || id).join(', ')
       }
-      return `${branchIds.length} sucursales`
+      return t('pages.promotions.branchesCount', { count: branchIds.length })
     },
     [branches.length, branchMap]
   )
@@ -224,18 +226,18 @@ export function PromotionsPage() {
       // Validate promotion exists before delete
       const promotionExists = promotions.some((p) => p.id === selectedPromotion.id)
       if (!promotionExists) {
-        toast.error('La promocion ya no existe')
+        toast.error(t('pages.promotions.promotionNotFound'))
         setIsDeleteOpen(false)
         return
       }
 
       // Delete from backend
       await deletePromotionAsync(selectedPromotion.id)
-      toast.success('Promocion eliminada correctamente')
+      toast.success(t('pages.promotions.promotionDeleted'))
       setIsDeleteOpen(false)
     } catch (error) {
       const message = handleError(error, 'PromotionsPage.handleDelete')
-      toast.error(`Error al eliminar la promocion: ${message}`)
+      toast.error(`${t('pages.promotions.errorDeleting')}: ${message}`)
     }
   }, [selectedPromotion, promotions, deletePromotionAsync])
 
@@ -260,7 +262,7 @@ export function PromotionsPage() {
     () => [
       {
         key: 'image',
-        label: 'Imagen',
+        label: t('common.image'),
         width: 'w-20',
         render: (item) =>
           item.image ? (
@@ -272,7 +274,7 @@ export function PromotionsPage() {
           ) : (
             <div
               className="w-12 h-12 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)]"
-              aria-label="Sin imagen"
+              aria-label={t('common.noImage')}
             >
               -
             </div>
@@ -280,7 +282,7 @@ export function PromotionsPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item) => (
           <div>
             <span className="font-medium">{item.name}</span>
@@ -294,7 +296,7 @@ export function PromotionsPage() {
       },
       {
         key: 'price',
-        label: 'Precio',
+        label: t('common.price'),
         width: 'w-28',
         render: (item) => (
           <span className="font-medium text-[var(--primary-500)]">
@@ -304,7 +306,7 @@ export function PromotionsPage() {
       },
       {
         key: 'promotion_type_id',
-        label: 'Tipo',
+        label: t('common.type'),
         width: 'w-32',
         render: (item) => {
           const promoType = promotionTypeMap.get(item.promotion_type_id)
@@ -320,7 +322,7 @@ export function PromotionsPage() {
       },
       {
         key: 'dates',
-        label: 'Vigencia',
+        label: t('pages.promotions.validity'),
         width: 'w-40',
         render: (item) => (
           <div className="text-sm text-[var(--text-tertiary)]">
@@ -333,7 +335,7 @@ export function PromotionsPage() {
       },
       {
         key: 'branch_ids',
-        label: 'Sucursales',
+        label: t('pages.promotions.branches'),
         width: 'w-32',
         render: (item) => (
           <span className="text-sm text-[var(--text-tertiary)]">
@@ -343,7 +345,7 @@ export function PromotionsPage() {
       },
       {
         key: 'items',
-        label: 'Productos',
+        label: t('pages.promotions.products'),
         width: 'w-24',
         render: (item) => (
           <span className="text-[var(--text-muted)]">
@@ -353,22 +355,22 @@ export function PromotionsPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         width: 'w-24',
         render: (item) =>
           isPromotionActive(item) ? (
             <Badge variant="success">
-              <span className="sr-only">Estado:</span> Activa
+              <span className="sr-only">Estado:</span> {t('common.active')}
             </Badge>
           ) : (
             <Badge variant="danger">
-              <span className="sr-only">Estado:</span> Inactiva
+              <span className="sr-only">Estado:</span> {t('common.inactive')}
             </Badge>
           ),
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('common.actions'),
         width: 'w-28',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -408,8 +410,8 @@ export function PromotionsPage() {
 
   return (
     <PageContainer
-      title="Promociones"
-      description="Administra las promociones y combos del menu"
+      title={t('pages.promotions.title')}
+      description={t('pages.promotions.description')}
       helpContent={helpContent.promotions}
       actions={
         canCreate ? (
@@ -423,8 +425,8 @@ export function PromotionsPage() {
         <Table
           data={paginatedPromotions}
           columns={columns}
-          emptyMessage="No hay promociones. Crea una para comenzar."
-          ariaLabel="Lista de promociones"
+          emptyMessage={t('pages.promotions.noPromotions')}
+          ariaLabel={t('pages.promotions.title')}
         />
         <Pagination
           currentPage={currentPage}
@@ -439,7 +441,7 @@ export function PromotionsPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={selectedPromotion ? 'Editar Promocion' : 'Nueva Promocion'}
+        title={selectedPromotion ? t('pages.promotions.editPromotion') : t('pages.promotions.newPromotion')}
         size="lg"
         footer={
           <>
@@ -447,7 +449,7 @@ export function PromotionsPage() {
               Cancelar
             </Button>
             <Button type="submit" form="promotion-form" isLoading={isPending}>
-              {selectedPromotion ? 'Guardar' : 'Crear'}
+              {selectedPromotion ? t('common.save') : t('common.create')}
             </Button>
           </>
         }
@@ -455,7 +457,7 @@ export function PromotionsPage() {
         <form id="promotion-form" action={formAction} className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <HelpButton
-              title="Formulario de Promocion"
+              title={t('pages.promotions.formTitle')}
               size="sm"
               content={
                 <div className="space-y-3">
@@ -500,11 +502,11 @@ export function PromotionsPage() {
                 </div>
               }
             />
-            <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+            <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
           </div>
 
           <Input
-            label="Nombre"
+            label={t('common.name')}
             name="name"
             value={formData.name}
             onChange={(e) =>
@@ -515,7 +517,7 @@ export function PromotionsPage() {
           />
 
           <Input
-            label="Descripcion"
+            label={t('common.description')}
             name="description"
             value={formData.description}
             onChange={(e) =>
@@ -525,7 +527,7 @@ export function PromotionsPage() {
           />
 
           <Input
-            label="Precio"
+            label={t('common.price')}
             name="price"
             type="number"
             value={formData.price}
@@ -544,7 +546,7 @@ export function PromotionsPage() {
 
           <input type="hidden" name="image" value={formData.image} />
           <ImageUpload
-            label="Imagen"
+            label={t('common.image')}
             value={formData.image}
             onChange={(url) =>
               setFormData((prev) => ({ ...prev, image: url }))
@@ -565,7 +567,7 @@ export function PromotionsPage() {
               className="w-full h-10 px-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)] focus:border-transparent"
               aria-label="Tipo de promoción"
             >
-              <option value="">Selecciona un tipo</option>
+              <option value="">{t('pages.promotions.selectType')}</option>
               {promotionTypes
                 .filter((pt) => pt.is_active !== false)
                 .map((pt) => (
@@ -581,7 +583,7 @@ export function PromotionsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Fecha de inicio"
+              label={t('pages.promotions.startDateLabel')}
               name="start_date"
               type="date"
               value={formData.start_date}
@@ -592,7 +594,7 @@ export function PromotionsPage() {
             />
 
             <Input
-              label="Fecha de fin"
+              label={t('pages.promotions.endDateLabel')}
               name="end_date"
               type="date"
               value={formData.end_date}
@@ -605,7 +607,7 @@ export function PromotionsPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Hora de inicio"
+              label={t('pages.promotions.startTimeLabel')}
               name="start_time"
               type="time"
               value={formData.start_time}
@@ -616,7 +618,7 @@ export function PromotionsPage() {
             />
 
             <Input
-              label="Hora de fin"
+              label={t('pages.promotions.endTimeLabel')}
               name="end_time"
               type="time"
               value={formData.end_time}
@@ -629,7 +631,7 @@ export function PromotionsPage() {
 
           <div className="border-t border-[var(--border-default)] pt-4">
             <ProductSelect
-              label="Productos del combo"
+              label={t('pages.promotions.productsInCombo')}
               value={formData.items}
               onChange={(items) =>
                 setFormData((prev) => ({ ...prev, items }))
@@ -640,7 +642,7 @@ export function PromotionsPage() {
 
           <div className="border-t border-[var(--border-default)] pt-4">
             <BranchCheckboxes
-              label="Sucursales donde aplica"
+              label={t('pages.promotions.branchesWhereApplies')}
               value={formData.branch_ids}
               onChange={(branchIds) =>
                 setFormData((prev) => ({ ...prev, branch_ids: branchIds }))
@@ -650,7 +652,7 @@ export function PromotionsPage() {
           </div>
 
           <Toggle
-            label="Promocion activa"
+            label={t('pages.promotions.activePromotion')}
             name="is_active"
             checked={formData.is_active}
             onChange={(e) =>
@@ -665,9 +667,9 @@ export function PromotionsPage() {
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleDelete}
-        title="Eliminar Promocion"
+        title={t('pages.promotions.deletePromotion')}
         message={`¿Estas seguro de eliminar "${selectedPromotion?.name}"?`}
-        confirmLabel="Eliminar"
+        confirmLabel={t('common.delete')}
       />
     </PageContainer>
   )

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Coins,
   Plus,
@@ -85,11 +86,7 @@ function formatDateTime(iso: string | null): string {
   })
 }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Efectivo',
-  CARD: 'Tarjeta',
-  MP: 'Mercado Pago',
-}
+// PAYMENT_METHOD_LABELS moved to component for i18n
 
 type TabKey = 'tips' | 'distribution' | 'pools' | 'reports'
 
@@ -98,7 +95,14 @@ type TabKey = 'tips' | 'distribution' | 'pools' | 'reports'
 // -------------------------------------------------------------------------
 
 export function TipsPage() {
-  useDocumentTitle('Propinas')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.tips.title'))
+
+  const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    CASH: t('pages.tips.cash'),
+    CARD: t('pages.tips.card'),
+    MP: t('pages.tips.mercadoPago'),
+  }
 
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
 
@@ -140,7 +144,7 @@ export function TipsPage() {
   const handleCreateTip = useCallback(() => {
     const cents = Math.round(parseFloat(tipAmount || '0') * 100)
     if (cents <= 0) {
-      toast.error('El monto debe ser mayor a 0')
+      toast.error(t('pages.tips.amountGreaterThanZero'))
       return
     }
 
@@ -162,7 +166,7 @@ export function TipsPage() {
     setTipAmount('')
     setTipSession('')
     setTipWaiter('')
-    toast.success('Propina registrada correctamente')
+    toast.success(t('pages.tips.tipRegistered'))
   }, [tipAmount, tipMethod, tipWaiter, tipSession, selectedBranchId])
 
   const handleSavePool = useCallback(() => {
@@ -172,11 +176,11 @@ export function TipsPage() {
     const total = waiter + kitchen + other
 
     if (!poolName.trim()) {
-      toast.error('El nombre es obligatorio')
+      toast.error(t('pages.tips.nameRequired'))
       return
     }
     if (Math.abs(total - 100) > 0.01) {
-      toast.error(`Los porcentajes deben sumar 100% (actual: ${total.toFixed(1)}%)`)
+      toast.error(t('pages.tips.pctError', { actual: total.toFixed(1) }))
       return
     }
 
@@ -188,7 +192,7 @@ export function TipsPage() {
             : p
         )
       )
-      toast.success('Pool actualizado')
+      toast.success(t('pages.tips.poolUpdated'))
     } else {
       const newPool: TipPool = {
         id: Date.now(),
@@ -200,7 +204,7 @@ export function TipsPage() {
         is_active: true,
       }
       setPools((prev) => [...prev, newPool])
-      toast.success('Pool creado correctamente')
+      toast.success(t('pages.tips.poolCreated'))
     }
 
     setShowPoolModal(false)
@@ -213,7 +217,7 @@ export function TipsPage() {
 
   const handleDeletePool = useCallback((poolId: number) => {
     setPools((prev) => prev.filter((p) => p.id !== poolId))
-    toast.success('Pool eliminado')
+    toast.success(t('pages.tips.poolDeleted'))
   }, [])
 
   const openEditPool = useCallback((pool: TipPool) => {
@@ -227,7 +231,7 @@ export function TipsPage() {
 
   const handleDistribute = useCallback(() => {
     if (!distributeTipId || !distributePoolId) {
-      toast.error('Selecciona una propina y un pool')
+      toast.error(t('pages.tips.selectTipAndPool'))
       return
     }
 
@@ -251,12 +255,12 @@ export function TipsPage() {
     setShowDistributeModal(false)
     setDistributeTipId('')
     setDistributePoolId('')
-    toast.success('Propina distribuida correctamente')
+    toast.success(t('pages.tips.tipDistributed'))
   }, [distributeTipId, distributePoolId, tips, pools])
 
   const handleGenerateReport = useCallback(() => {
     if (!reportFrom || !reportTo) {
-      toast.error('Selecciona un rango de fechas')
+      toast.error(t('pages.tips.selectDateRange'))
       return
     }
 
@@ -312,11 +316,11 @@ export function TipsPage() {
 
   if (!selectedBranchId) {
     return (
-      <PageContainer title="Propinas" description="Gestion de propinas y distribucion">
+      <PageContainer title={t('pages.tips.title')} description={t('pages.tips.selectBranchDesc')}>
         <Card>
           <div className="text-center py-12 text-[var(--text-muted)]">
             <Coins className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-            <p className="text-lg">Selecciona una sucursal desde el Dashboard</p>
+            <p className="text-lg">{t('pages.tips.selectBranchMessage')}</p>
           </div>
         </Card>
       </PageContainer>
@@ -324,14 +328,14 @@ export function TipsPage() {
   }
 
   return (
-    <PageContainer title="Propinas" description="Gestion de propinas, pools de distribucion y reportes">
+    <PageContainer title={t('pages.tips.title')} description={t('pages.tips.description')}>
       {/* Tabs */}
       <div className="flex gap-2 mb-6" role="tablist">
         {([
-          { key: 'tips' as TabKey, label: 'Propinas' },
-          { key: 'distribution' as TabKey, label: 'Distribucion' },
-          { key: 'pools' as TabKey, label: 'Pools' },
-          { key: 'reports' as TabKey, label: 'Reportes' },
+          { key: 'tips' as TabKey, label: t('pages.tips.tabTips') },
+          { key: 'distribution' as TabKey, label: t('pages.tips.tabDistribution') },
+          { key: 'pools' as TabKey, label: t('pages.tips.tabPools') },
+          { key: 'reports' as TabKey, label: t('pages.tips.tabReports') },
         ]).map((tab) => (
           <button
             key={tab.key}
@@ -353,24 +357,24 @@ export function TipsPage() {
       {activeTab === 'tips' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Propinas Registradas</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.tips.registeredTips')}</h3>
             <Button variant="primary" size="sm" onClick={() => setShowTipModal(true)} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>
               Registrar Propina
             </Button>
           </div>
           {tips.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay propinas registradas</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.tips.noTips')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de propinas">
+              <table className="w-full text-sm" aria-label={t('pages.tips.registeredTips')}>
                 <thead>
                   <tr className="border-b border-[var(--border-default)]">
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Fecha</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Mesa</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Mozo</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Monto</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Metodo</th>
-                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Estado</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.dateCol')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.tableCol')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.waiterCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.amountCol')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.methodCol')}</th>
+                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.statusCol')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -397,23 +401,23 @@ export function TipsPage() {
       {activeTab === 'distribution' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Distribucion de Propinas</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.tips.tipDistribution')}</h3>
             <Button variant="primary" size="sm" onClick={() => setShowDistributeModal(true)} leftIcon={<PieChart className="w-4 h-4" aria-hidden="true" />}>
               Distribuir Propina
             </Button>
           </div>
           {distributions.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay distribuciones realizadas</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.tips.noDistributions')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Historial de distribuciones">
+              <table className="w-full text-sm" aria-label={t('pages.tips.tipDistribution')}>
                 <thead>
                   <tr className="border-b border-[var(--border-default)]">
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Fecha</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Pool</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Mozos</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Cocina</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Otros</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.dateCol')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.poolCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.waitersCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.kitchenCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.othersCol')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -437,23 +441,23 @@ export function TipsPage() {
       {activeTab === 'pools' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Pools de Distribucion</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.tips.distributionPools')}</h3>
             <Button variant="primary" size="sm" onClick={() => { setEditingPool(null); setPoolName(''); setPoolWaiterPct('70'); setPoolKitchenPct('20'); setPoolOtherPct('10'); setShowPoolModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>
               Crear Pool
             </Button>
           </div>
           {pools.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay pools configurados</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.tips.noPools')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de pools">
+              <table className="w-full text-sm" aria-label={t('pages.tips.distributionPools')}>
                 <thead>
                   <tr className="border-b border-[var(--border-default)]">
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Nombre</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Mozos %</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Cocina %</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Otros %</th>
-                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Acciones</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.nameCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.waitersPct')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.kitchenPct')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.othersPct')}</th>
+                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.actionsCol')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -492,44 +496,44 @@ export function TipsPage() {
             </h3>
             <div className="flex gap-4 items-end">
               <div>
-                <label htmlFor="report-from" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Desde</label>
+                <label htmlFor="report-from" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.from')}</label>
                 <input id="report-from" type="date" value={reportFrom} onChange={(e) => setReportFrom(e.target.value)} className="px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="report-to" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Hasta</label>
+                <label htmlFor="report-to" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.to')}</label>
                 <input id="report-to" type="date" value={reportTo} onChange={(e) => setReportTo(e.target.value)} className="px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Button variant="primary" size="sm" onClick={handleGenerateReport}>Generar Reporte</Button>
+              <Button variant="primary" size="sm" onClick={handleGenerateReport}>{t('pages.tips.generateReport')}</Button>
             </div>
           </Card>
           {report && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Card className="p-4">
-                  <p className="text-[var(--text-tertiary)] text-sm">Total Propinas</p>
+                  <p className="text-[var(--text-tertiary)] text-sm">{t('pages.tips.totalTips')}</p>
                   <p className="text-2xl font-bold text-[var(--text-primary)]">{formatCurrency(report.total_tips_cents)}</p>
                 </Card>
                 <Card className="p-4">
-                  <p className="text-[var(--text-tertiary)] text-sm">Promedio Diario</p>
+                  <p className="text-[var(--text-tertiary)] text-sm">{t('pages.tips.dailyAverage')}</p>
                   <p className="text-2xl font-bold text-[var(--text-primary)]">{formatCurrency(report.daily_average_cents)}</p>
                 </Card>
                 <Card className="p-4">
-                  <p className="text-[var(--text-tertiary)] text-sm">Periodo</p>
+                  <p className="text-[var(--text-tertiary)] text-sm">{t('pages.tips.period')}</p>
                   <p className="text-2xl font-bold text-[var(--text-primary)]">{report.period_days} dias</p>
                 </Card>
               </div>
               <Card className="p-6">
-                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">Por Mozo</h4>
+                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">{t('pages.tips.byWaiter')}</h4>
                 {report.by_waiter.length === 0 ? (
-                  <p className="text-[var(--text-muted)] text-sm">Sin datos</p>
+                  <p className="text-[var(--text-muted)] text-sm">{t('pages.tips.noData')}</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-[var(--border-default)]">
-                          <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Mozo</th>
-                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Cantidad</th>
-                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Total</th>
+                          <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.waiterCol')}</th>
+                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.quantityCol')}</th>
+                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.totalCol')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -546,17 +550,17 @@ export function TipsPage() {
                 )}
               </Card>
               <Card className="p-6">
-                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">Por Metodo de Pago</h4>
+                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">{t('pages.tips.byPaymentMethod')}</h4>
                 {report.by_method.length === 0 ? (
-                  <p className="text-[var(--text-muted)] text-sm">Sin datos</p>
+                  <p className="text-[var(--text-muted)] text-sm">{t('pages.tips.noData')}</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-[var(--border-default)]">
-                          <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Metodo</th>
-                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Cantidad</th>
-                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Total</th>
+                          <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.methodCol')}</th>
+                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.quantityCol')}</th>
+                          <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.tips.totalCol')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -582,25 +586,25 @@ export function TipsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowTipModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Registrar Propina</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{t('pages.tips.registerTip')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="tip-session" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">ID de Sesion (Mesa)</label>
+                <label htmlFor="tip-session" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.sessionId')}</label>
                 <input id="tip-session" type="number" value={tipSession} onChange={(e) => setTipSession(e.target.value)} placeholder="Ej: 12" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="tip-amount" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Monto ($)</label>
+                <label htmlFor="tip-amount" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.amount')}</label>
                 <input id="tip-amount" type="number" min="0" step="0.01" value={tipAmount} onChange={(e) => setTipAmount(e.target.value)} placeholder="0.00" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Select id="tip-method" label="Metodo de Pago" options={paymentMethodOptions} value={tipMethod} onChange={(e) => setTipMethod(e.target.value)} />
+              <Select id="tip-method" label={t('pages.tips.paymentMethod')} options={paymentMethodOptions} value={tipMethod} onChange={(e) => setTipMethod(e.target.value)} />
               <div>
-                <label htmlFor="tip-waiter" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">ID del Mozo</label>
+                <label htmlFor="tip-waiter" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.waiterId')}</label>
                 <input id="tip-waiter" type="number" value={tipWaiter} onChange={(e) => setTipWaiter(e.target.value)} placeholder="Ej: 5" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowTipModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleCreateTip}>Registrar</Button>
+              <Button variant="secondary" onClick={() => setShowTipModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleCreateTip}>{t('pages.tips.register')}</Button>
             </div>
           </div>
         </div>
@@ -611,31 +615,31 @@ export function TipsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowPoolModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingPool ? 'Editar Pool' : 'Crear Pool'}</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingPool ? t('pages.tips.editPool') : t('pages.tips.createPoolTitle')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="pool-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Nombre</label>
+                <label htmlFor="pool-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.nameCol')}</label>
                 <input id="pool-name" type="text" value={poolName} onChange={(e) => setPoolName(e.target.value)} placeholder="Ej: Pool Estandar" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label htmlFor="pool-waiter" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Mozos %</label>
+                  <label htmlFor="pool-waiter" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.waitersPct')}</label>
                   <input id="pool-waiter" type="number" min="0" max="100" value={poolWaiterPct} onChange={(e) => setPoolWaiterPct(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
                 <div>
-                  <label htmlFor="pool-kitchen" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Cocina %</label>
+                  <label htmlFor="pool-kitchen" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.kitchenPct')}</label>
                   <input id="pool-kitchen" type="number" min="0" max="100" value={poolKitchenPct} onChange={(e) => setPoolKitchenPct(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
                 <div>
-                  <label htmlFor="pool-other" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Otros %</label>
+                  <label htmlFor="pool-other" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.tips.othersPct')}</label>
                   <input id="pool-other" type="number" min="0" max="100" value={poolOtherPct} onChange={(e) => setPoolOtherPct(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
               </div>
-              <p className="text-xs text-[var(--text-muted)]">Los porcentajes deben sumar 100%</p>
+              <p className="text-xs text-[var(--text-muted)]">{t('pages.tips.pctMustSum100')}</p>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowPoolModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleSavePool}>{editingPool ? 'Guardar' : 'Crear'}</Button>
+              <Button variant="secondary" onClick={() => setShowPoolModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleSavePool}>{editingPool ? t('common.save') : t('common.create')}</Button>
             </div>
           </div>
         </div>
@@ -646,14 +650,14 @@ export function TipsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowDistributeModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Distribuir Propina</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{t('pages.tips.distributeTip')}</h3>
             <div className="space-y-4">
-              <Select id="distribute-tip" label="Propina" options={undistributedTipOptions} value={distributeTipId} onChange={(e) => setDistributeTipId(e.target.value)} />
-              <Select id="distribute-pool" label="Pool de Distribucion" options={poolOptions} value={distributePoolId} onChange={(e) => setDistributePoolId(e.target.value)} />
+              <Select id="distribute-tip" label={t('pages.tips.tip')} options={undistributedTipOptions} value={distributeTipId} onChange={(e) => setDistributeTipId(e.target.value)} />
+              <Select id="distribute-pool" label={t('pages.tips.distributionPool')} options={poolOptions} value={distributePoolId} onChange={(e) => setDistributePoolId(e.target.value)} />
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowDistributeModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleDistribute}>Distribuir</Button>
+              <Button variant="secondary" onClick={() => setShowDistributeModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleDistribute}>{t('pages.tips.distribute')}</Button>
             </div>
           </div>
         </div>

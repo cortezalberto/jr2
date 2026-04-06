@@ -5,6 +5,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react'
 import { FiscalInvoice } from './FiscalInvoice'
 import { Button } from './Button'
+import { storeLogger } from '../utils/logger'
 import { exportInvoiceToPDF } from '../utils/pdfExport'
 import type { FiscalInvoiceData, InvoiceItem, PaymentMethod } from '../types/fiscal'
 import { generateMockCAE, generateAFIPQRData } from '../types/fiscal'
@@ -136,7 +137,7 @@ export function FiscalInvoiceModal({
     try {
       await exportInvoiceToPDF(invoiceRef.current, invoiceData)
     } catch (error) {
-      console.error('Export error:', error)
+      storeLogger.error('Export error', error)
       setExportError('Error al exportar PDF. Intente nuevamente.')
     } finally {
       setIsExporting(false)

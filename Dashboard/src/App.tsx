@@ -24,6 +24,7 @@ const SealsPage = lazy(() => import('./pages/Seals'))
 const PromotionTypesPage = lazy(() => import('./pages/PromotionTypes'))
 const PromotionsPage = lazy(() => import('./pages/Promotions'))
 const ProductExclusionsPage = lazy(() => import('./pages/ProductExclusions'))
+const CustomizationsPage = lazy(() => import('./pages/Customizations'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const SalesPage = lazy(() => import('./pages/Sales'))
 const HistoryBranchesPage = lazy(() => import('./pages/HistoryBranches'))
@@ -39,6 +40,9 @@ const FiscalPage = lazy(() => import('./pages/Fiscal'))
 const SchedulingPage = lazy(() => import('./pages/Scheduling'))
 const CRMPage = lazy(() => import('./pages/CRM'))
 const FloorPlanPage = lazy(() => import('./pages/FloorPlan'))
+const ReservationsPage = lazy(() => import('./pages/Reservations'))
+const DeliveryPage = lazy(() => import('./pages/Delivery'))
+const AuditLogPage = lazy(() => import('./pages/AuditLog'))
 
 // Loading fallback component for Suspense
 function PageLoader() {
@@ -257,6 +261,14 @@ function App() {
               }
             />
             <Route
+              path="customizations"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <CustomizationsPage />
+                </Suspense>
+              }
+            />
+            <Route
               path="statistics/sales"
               element={
                 <Suspense fallback={<PageLoader />}>
@@ -285,6 +297,14 @@ function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <FloorPlanPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="reservations"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <ReservationsPage />
                 </Suspense>
               }
             />
@@ -325,6 +345,22 @@ function App() {
               element={
                 <Suspense fallback={<PageLoader />}>
                   <CRMPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="delivery"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <DeliveryPage />
+                </Suspense>
+              }
+            />
+            <Route
+              path="audit-log"
+              element={
+                <Suspense fallback={<PageLoader />}>
+                  <AuditLogPage />
                 </Suspense>
               }
             />

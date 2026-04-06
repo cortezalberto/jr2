@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Quick Reference
 
+### Prerequisites
+
+- **Python 3.12+** (CI uses 3.12)
+- **Node.js 22+** (CI uses 22)
+- **Docker & Docker Compose** (recommended for backend services)
+- **Ollama** (optional — only needed for AI/RAG chatbot features)
+
+**Environment variables**: All 3 frontends use `VITE_API_URL=http://localhost:8000` (no `/api` suffix — each app's API client adds the prefix internally). pwaMenu and pwaWaiter also need `VITE_WS_URL=ws://localhost:8001`. pwaMenu additionally requires `VITE_BRANCH_SLUG` and `VITE_MP_PUBLIC_KEY`.
+
 **Start Development (Docker - recommended):**
 ```bash
 cd devOps && docker compose up -d --build   # All services (DB, Redis, API, WS)
@@ -55,6 +64,13 @@ alembic revision --autogenerate -m "describe change"   # Generate migration
 alembic upgrade head                                    # Apply all migrations
 alembic downgrade -1                                    # Rollback last migration
 alembic history                                         # Show migration history
+```
+
+**First-time Database Setup:**
+```bash
+cd backend && alembic upgrade head          # Apply all migrations (001-011)
+cd backend && python cli.py db-seed         # Load seed data (tenants, users, allergens, menu, tables)
+cd backend && python cli.py db-seed --only=users  # Load specific module only
 ```
 
 **Backup & Restore:**
@@ -352,6 +368,28 @@ useEffect(() => {
 
 In `api.ts`, `authAPI.logout()` must disable retry on 401. Otherwise: expired token → 401 → onTokenExpired → logout() → 401 → infinite loop. Pass `false` as third arg to `fetchAPI` to disable retry.
 
+### React 19 Patterns (Frontends)
+
+**`useActionState` for form submissions** (Dashboard + pwaMenu):
+```typescript
+const [state, formAction, isPending] = useActionState<FormState, FormData>(
+  async (prevState, formData) => {
+    const value = formData.get('field')
+    // Validate, submit, return { isSuccess, errors }
+  },
+  { isSuccess: false }
+)
+// In JSX: <form action={formAction}> with <Button isLoading={isPending}>
+```
+
+**`useOptimisticCart` hook** (pwaMenu): Uses React 19's `useOptimistic` for instant cart feedback with automatic rollback on API failure. See `pwaMenu/src/hooks/useOptimisticCart.ts`.
+
+**Store migrations with type guards** (Dashboard): Zustand persist migrations use `unknown` for `persistedState` (never `any`), validate structure with type guards, and return safe defaults on validation failure. Always increment `STORE_VERSIONS` when changing data structure. See `Dashboard/CLAUDE.md` → "Store Migrations".
+
+**`useFormModal` + `useConfirmDialog`** (Dashboard): Eliminate boilerplate in CRUD pages — `useFormModal` replaces 3 useState calls, `useConfirmDialog` replaces 2. See `Dashboard/src/hooks/`.
+
+**React Compiler**: All 3 frontends use `babel-plugin-react-compiler` for automatic memoization. `eslint-plugin-react-hooks` 7.x enforces stricter rules — hooks must be called unconditionally, prefer derived state over `setState` in `useEffect`.
+
 ### Async Hook Mount Guard
 
 ```typescript
@@ -379,6 +417,7 @@ useEffect(() => {
 - **SQL Reserved Words**: Avoid as table names (e.g., `Check` → `__tablename__ = "app_check"`)
 - **pwaMenu i18n**: ALL user-facing text must use `t()` — zero hardcoded strings (es/en/pt)
 - **localStorage expiry**: pwaMenu uses 8-hour TTL for cached data (menu, session). Stores check expiry on load and clear stale data. Other frontends use session-scoped storage.
+- **Mobile viewport**: pwaMenu containers must include `overflow-x-hidden w-full max-w-full` to prevent horizontal scroll on mobile
 
 ---
 
@@ -451,6 +490,21 @@ Cart is **per-device** (not real-time multi-device sync). Each diner manages the
 
 Waiter takes orders for customers without phones via compact menu endpoint (`GET /api/waiter/branches/{id}/menu`, no images).
 
+### PWA & Service Workers
+
+**pwaMenu** caching strategies (Workbox in `vite.config.ts`):
+- **CacheFirst**: Images (30d TTL), fonts (1y TTL)
+- **NetworkFirst**: API calls with timeout fallback for offline support
+- **SPA fallback**: Navigates to `index.html` offline
+- Offline-first with local fallback images (`fallback-product.svg`, `default-avatar.svg`)
+
+**pwaWaiter** push notifications:
+- `sw-push.js` service worker for background push events
+- `pushNotifications.ts` manages subscription via `POST /api/waiter/notifications/subscribe`
+- Requires VAPID keys in backend config
+- `RetryQueueStore` queues failed operations for retry when connectivity returns
+- Sound alerts for service calls and check requests
+
 ### Customer Loyalty
 
 Device tracking (Phase 1) → Implicit preferences sync (Phase 2) → Customer opt-in with GDPR consent (Phase 4).
@@ -469,7 +523,7 @@ The ws_gateway (`ws_gateway/` at project root) uses composition and design patte
 - Worker pool broadcast (10 parallel workers, ~160ms for 400 users) with legacy batch fallback (50 per batch)
 - Redis Streams consumer for critical events (at-least-once delivery, DLQ for failed messages)
 
-See `ws_gateway/README.md` and `ws_gateway/arquiws_gateway.md` for architecture details.
+See `ws_gateway/README.md` for architecture details.
 
 ---
 
@@ -490,13 +544,61 @@ Use `python -m uvicorn` instead. WS Gateway requires `$env:PYTHONPATH = "$PWD\ba
 3. Verify WS Gateway is running on :8001
 
 ### pwaMenu 404 on API calls
-Ensure `VITE_API_URL=http://localhost:8000/api` (with `/api` suffix).
-
-### VITE_API_URL inconsistency between frontends
-Dashboard uses `VITE_API_URL=http://localhost:8000` (WITHOUT `/api`), while pwaMenu and pwaWaiter use `VITE_API_URL=http://localhost:8000/api` (WITH `/api`). This is a known inconsistency — check the `.env.example` of each sub-project.
+Ensure `VITE_API_URL=http://localhost:8000` (no `/api` suffix — the app's API client adds it internally). Also verify `VITE_BRANCH_SLUG` matches the branch slug in the database.
 
 ### CORS issues
 Dev uses default localhost ports. When adding new origins, update `DEFAULT_CORS_ORIGINS` in `backend/rest_api/main.py` and `ws_gateway/components/core/constants.py`.
+
+---
+
+## AI/RAG Integration (Optional)
+
+Ollama-based chatbot scaffolded for pwaMenu AI assistant. **Not required for core development.**
+
+```bash
+# backend/.env — only needed if using AI features
+OLLAMA_URL=http://localhost:11434
+EMBED_MODEL=nomic-embed-text
+CHAT_MODEL=qwen2.5:7b
+```
+
+pwaMenu's `AIChat/` component uses `useActionState` with a strategy pattern for response handling (`responseHandlers.ts`). The backend RAG endpoint is optional — the app functions fully without it.
+
+---
+
+## Testing
+
+**Vitest versions**: Dashboard & pwaMenu use Vitest 4.0 | pwaWaiter uses Vitest 3.2
+
+**Frontend tests:**
+- `npm test` — watch mode (all frontends)
+- `npm run test:run` — single run, CI-friendly (pwaMenu, pwaWaiter)
+- `npm run test:coverage` — coverage report (Dashboard, pwaMenu)
+- Dashboard: 100+ tests, ~3.5s. Store tests use Zustand persist migrations with type guards.
+- See each sub-project's `CLAUDE.md` for detailed test patterns and hooks.
+
+**Backend tests:**
+- Requires PostgreSQL (`menu_ops_test` DB) + Redis running (CI uses `pgvector/pgvector:pg16` + `redis:7-alpine`)
+- `cd backend && python -m pytest tests/ -v --tb=short`
+- CI env: `ENVIRONMENT=test`, test-specific JWT/table token secrets
+
+**E2E tests**: `cd e2e && npm install && npx playwright test` (Playwright, all 3 frontends)
+
+---
+
+## Rate Limiting Details
+
+| Endpoint | Limit | Notes |
+|----------|-------|-------|
+| `POST /api/auth/login` | 5/minute | Per-IP + per-email (Redis-backed with Lua scripts) |
+| `POST /api/auth/refresh` | 5/minute | Stricter limit for token refresh |
+| Billing: check request | 10/minute | Outbox pattern for guaranteed delivery |
+| Billing: payment operations | 20/minute | — |
+| Billing: critical operations | 5/minute | Most restrictive |
+| WebSocket messages | 30/window/connection | Configurable via `WS_MESSAGE_RATE_LIMIT` |
+| Login attempts | 5 per 60s window | Configurable via `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW` env vars |
+
+Rate limiter uses `slowapi` with Redis backend and a `ThreadPoolExecutor` (2 workers) for sync Redis operations. WS Gateway has its own rate limiter component (`ws_gateway/components/`).
 
 ---
 
@@ -546,7 +648,7 @@ Complete user story backlog: [proyehisto0.md](proyehisto0.md) | Gap-focused back
 - `ci.yml`: Runs on push/PR to main/develop. 4 parallel jobs: backend (pytest + PostgreSQL + Redis), Dashboard (lint + type-check + test + build), pwaMenu (lint + type-check + test + build), pwaWaiter (lint + type-check + test + build).
 - `docker-build.yml`: Validates Docker image builds on backend/ws_gateway/devOps changes.
 
-**Database Migrations**: Alembic configured in `backend/alembic/`. The `env.py` imports all models from `rest_api.models.Base` and reads `DATABASE_URL` from `shared.config.settings`. No `sqlalchemy.url` in `alembic.ini` — it's loaded dynamically.
+**Database Migrations**: Alembic configured in `backend/alembic/`. The `env.py` imports all models from `rest_api.models.Base` and reads `DATABASE_URL` from `shared.config.settings`. No `sqlalchemy.url` in `alembic.ini` — it's loaded dynamically. Migration chain: `None → 001 → ... → 012 → 013 → 014` (14 migrations, no gaps). 013 = round item void fields, 014 = manager override table.
 
 **Backups**: `devOps/backup/` contains `backup.sh` (PostgreSQL dump + Redis AOF → .tar.gz with rotation: 7 daily, 4 weekly) and `restore.sh` (interactive restore with health check verification).
 
@@ -554,7 +656,7 @@ Complete user story backlog: [proyehisto0.md](proyehisto0.md) | Gap-focused back
 
 **Secrets**: `devOps/docker-compose.yml` uses `${VAR:-default}` syntax. Development works without `.env` file. Production requires `devOps/.env` with strong secrets. See `devOps/.env.example`.
 
-**Knowledge Base**: `knowledge-base/` contains 44 documents (v3) covering the complete system: architecture, data model, business rules, state machines, API endpoints, security, event flows, metrics, feature maturity matrix, cross-feature dependencies, developer onboarding, tooling inventory, known gotchas, abstraction layers, and i18n status. See `knowledge-base/README.md` for navigation.
+**Knowledge Base**: `knowledge-base/` v4 — 31 docs in 7 carpetas: `01-negocio/`, `02-arquitectura/`, `03-seguridad/`, `04-infraestructura/`, `05-dx/`, `06-estado-del-proyecto/`, `07-anexos/`. See `knowledge-base/README.md` for navigation.
 
 **Design Patterns**: `UsadoPatrones.md` documents all 57 design patterns found across backend, ws_gateway, and the 3 frontends (GoF, DDD, modern React/Python patterns with file paths and code evidence).
 
@@ -564,52 +666,23 @@ Complete user story backlog: [proyehisto0.md](proyehisto0.md) | Gap-focused back
 
 ---
 
-## Recent Additions
+## Key Architectural Decisions
 
-**Product Availability**: Kitchen can mark products as unavailable via `PATCH /api/kitchen/products/{id}/availability`. `BranchProduct.is_available` (different from `is_active`). Emits `PRODUCT_AVAILABILITY_CHANGED` WebSocket event. Menu auto-filters unavailable products.
-
-**Event Catch-up**: After WebSocket reconnection, clients call `GET /ws/catchup?branch_id=&since=&token=` to get missed events. Backend stores last 100 events per branch in Redis sorted set (5-min TTL). pwaWaiter auto-replays on reconnect.
-
-**Kitchen Display**: `Dashboard/src/pages/Kitchen.tsx` — 3-column layout (En Espera / En Preparación / Listos) with urgency color coding (yellow <10min, orange 10-20min, red >20min), action buttons, auto-updating timers.
-
-**Statistics**: `Dashboard/src/pages/Sales.tsx` + `backend/rest_api/routers/admin/reports.py` — Daily revenue, orders, avg ticket, top products, orders by hour chart.
-
-**Light/Dark Mode**: `Dashboard/src/utils/theme.ts` — Toggle in Sidebar. CSS variables `[data-theme="light"]` in all 3 frontends. Persists to localStorage.
-
-**Push Notifications (pwaWaiter)**: `pwaWaiter/src/services/pushNotifications.ts` + `pwaWaiter/public/sw-push.js`. Backend: `POST /api/waiter/notifications/subscribe`. Requires VAPID keys.
-
-**Seed Data Modular**: `backend/rest_api/seeds/` — 5 modules (tenants, users, allergens, menu, tables). CLI: `python cli.py db-seed --only=users`.
-
-**Payment Gateway Abstraction**: `backend/rest_api/services/payments/gateway.py` — `PaymentGateway` ABC. `MercadoPagoGateway` implementation. Future: Stripe, PayPal.
-
-**Reservations**: `backend/rest_api/models/reservation.py` — Model with status flow (PENDING → CONFIRMED → SEATED → COMPLETED/CANCELED/NO_SHOW). Migration: `003_create_reservation_table.py`.
-
-**Takeout/Delivery**: `backend/rest_api/models/delivery.py` — `DeliveryOrder` + `DeliveryOrderItem` models. Migration: `004_create_delivery_tables.py`. Architecture: `docs/delivery-architecture.md`.
-
-**Dashboard i18n**: `Dashboard/src/i18n/` — i18next setup with es/en locales. Requires `npm install i18next react-i18next`.
-
-**Shared WebSocket Client**: `shared/websocket-client.ts` — `createWebSocketClient()` factory with reconnection, heartbeat, event subscription. Target: replace per-app websocket.ts files.
-
-**Shared UI Scaffold**: `shared/ui/README.md` — Documents component unification plan across 3 frontends.
-
----
-
-## Business Modules (7 nuevos)
-
-**Inventory & Costs**: `backend/rest_api/models/inventory.py` — 8 models (StockItem, StockMovement, StockAlert, Supplier, PurchaseOrder, PurchaseOrderItem, WasteLog, RecipeCost). Service: `inventory_service.py` with `deduct_for_round()` (auto-deducts stock on order confirmation), `calculate_recipe_cost()`, `get_food_cost_report()`. Dashboard: `Inventory.tsx` + `Suppliers.tsx`. Migration: `005`.
-
-**Cash Register (Cierre de Caja)**: `backend/rest_api/models/cash_register.py` — CashRegister, CashSession, CashMovement. Flow: open session (opening amount) → record movements → close session (count actual cash, system calculates expected, shows difference). Dashboard: `CashRegister.tsx`. Migration: `006`.
-
-**Tips (Propinas)**: `backend/rest_api/models/tip.py` — Tip, TipDistribution, TipPool. Configurable distribution pools (waiter %, kitchen %, other %). Dashboard: `Tips.tsx` with 4 tabs (propinas, distribución, pools, reportes). Migration: `007`.
-
-**AFIP Fiscal (Facturación Electrónica)**: `backend/rest_api/models/fiscal.py` — FiscalPoint, FiscalInvoice, CreditNote. Types A/B/C, CAE tracking, IVA calculation. **STUB**: `_call_afip_wsfe()` returns simulated CAE (needs `pyafipws` + AFIP certificates for production). Dashboard: `Fiscal.tsx`. Migration: `008`.
-
-**Scheduling (Turnos y Horarios)**: `backend/rest_api/models/scheduling.py` — Shift, ShiftTemplate, ShiftTemplateItem, AttendanceLog. Template-based shift generation, clock-in/out with overtime calculation (>8h). Dashboard: `Scheduling.tsx` with weekly grid. Migration: `009`.
-
-**Customer CRM**: `backend/rest_api/models/crm.py` — CustomerProfile, CustomerVisit, LoyaltyTransaction, LoyaltyRule. Loyalty tiers (BRONZE→SILVER→GOLD→PLATINUM), points earning/redemption, GDPR consent. Dashboard: `CRM.tsx` with customer search + tier badges. Migration: `010`.
-
-**Floor Plan (Plan de Piso Visual)**: `backend/rest_api/models/floor_plan.py` — FloorPlan, FloorPlanTable. Visual table layout with drag-to-reposition, real-time status colors, auto-grid generation. Dashboard: `FloorPlan.tsx`. Migration: `011`.
-
-**Migration chain**: `None → 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011` (verified, no gaps). Run: `cd backend && alembic upgrade head`.
-
-**Dashboard total**: 34 pages, all with sidebar links and routes.
+- **Product availability vs active**: `BranchProduct.is_available` (kitchen toggle, runtime) is different from `is_active` (soft delete, permanent). Both must be checked in menu queries.
+- **Event catch-up**: After WS reconnect, all 3 frontends call catch-up endpoints. Staff: `GET /ws/catchup?branch_id=&since=&token=` (JWT). Diners: `GET /ws/catchup/session?session_id=&since=&table_token=`. Redis sorted set, 100 events, 5-min TTL.
+- **Shared WebSocket client**: `shared/websocket-client.ts` — `BaseWebSocketClient` abstract class. Subclasses: `DashboardWebSocket`, `DinerWebSocket`, `WebSocketService`. All frontends use `@shared` path alias.
+- **Payment gateway**: `PaymentGateway` ABC in `backend/rest_api/services/payments/gateway.py`. `MercadoPagoGateway` is the current implementation. Billing router uses the abstraction (no inline MP code).
+- **Redis menu cache**: Public menu cached per branch slug (`cache:menu:{slug}`), 5-min TTL. Auto-invalidated on product/category CRUD and availability toggles. Module: `shared/infrastructure/cache/menu_cache.py`.
+- **AFIP fiscal**: `_call_afip_wsfe()` is a **STUB** returning simulated CAE. Production requires `pyafipws` + AFIP certificates.
+- **Dashboard i18n**: 39 pages fully translated (es/en). `react-i18next` with 700+ keys. Language toggle in sidebar.
+- **Dashboard**: 39 pages total (including AuditLog, Reservations, Delivery). Each sub-project's `CLAUDE.md` has detailed patterns.
+- **Manager overrides**: `ManagerOverride` model for item voids, discounts, payment reversals. `OverrideService` in domain services. Migration 014.
+- **Item void**: `RoundItem.is_voided` + `void_reason` fields (migration 013). Void from SUBMITTED/IN_KITCHEN/READY states. Auto-cancels round if all items voided.
+- **Receipt printing**: `ReceiptService` generates thermal-printer HTML (kitchen tickets, customer receipts, daily reports). Print buttons in Kitchen + Sales pages.
+- **Stock validation**: `round_service.submit_round()` validates inventory before creating items. Returns 409 if insufficient stock.
+- **GDPR compliance**: `GET /admin/data-export/customer/{id}` (full export) + `DELETE` (anonymize PII). Buttons in CRM page.
+- **Kitchen alerts**: Web Audio API beep + visual flash on ROUND_SUBMITTED. Sound toggle persisted to localStorage.
+- **2FA**: TOTP via `pyotp`. Setup/verify/disable endpoints. Conditional TOTP field on login. Settings page section.
+- **Email service**: `shared/infrastructure/email/service.py` — SMTP (optional, no-op if unconfigured). Used for reservation confirmations.
+- **Idle timeout**: `useIdleTimeout` hook — warning at 25min, auto-logout at 30min. Skips Kitchen page.
+- **Production**: TLS via `devOps/nginx/nginx-ssl.conf` + Let's Encrypt (`devOps/ssl/init-letsencrypt.sh`). Monitoring: Prometheus + Grafana + Loki in `devOps/monitoring/`. Load testing: k6 scripts in `devOps/loadtest/`. Runbook: `devOps/RUNBOOK.md`.

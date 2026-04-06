@@ -23,6 +23,12 @@ organized by domain:
 - scheduling: Employee shifts, templates, attendance, labor cost
 - crm: Customer profiles, loyalty points, visit history, reports
 - floor_plan: Floor plan CRUD, table positioning, live view, auto-generation
+- customizations: Product customization options (modifiers like "sin cebolla", "extra queso")
+- reservations: Table reservation CRUD with status FSM
+- delivery: Delivery and takeout order management
+- receipts: Kitchen tickets, customer receipts, daily closing reports (HTML for printing)
+- overrides: Manager override operations (voids, discounts, adjustments)
+- data_export: GDPR compliance (customer data export, anonymization, audit log)
 - audit: Audit log viewing
 - restore: Entity restoration
 
@@ -53,6 +59,12 @@ from .fiscal import router as fiscal_router
 from .scheduling import router as scheduling_router
 from .crm import router as crm_router
 from .floor_plan import router as floor_plan_router
+from .customizations import router as customizations_router
+from .reservations import router as reservations_router
+from .delivery import router as delivery_router
+from .receipts import router as receipts_router
+from .overrides import router as overrides_router
+from .data_export import router as data_export_router
 
 
 # Create the main admin router with /api/admin prefix
@@ -98,6 +110,24 @@ router.include_router(scheduling_router)
 # CRM and floor plans
 router.include_router(crm_router)
 router.include_router(floor_plan_router)
+
+# Product customizations
+router.include_router(customizations_router)
+
+# Reservations
+router.include_router(reservations_router)
+
+# Delivery / Takeout
+router.include_router(delivery_router)
+
+# Receipts and printing
+router.include_router(receipts_router)
+
+# Manager overrides (voids, discounts)
+router.include_router(overrides_router)
+
+# GDPR / Data export
+router.include_router(data_export_router)
 
 # Audit and restore (generic endpoints)
 router.include_router(audit_router)

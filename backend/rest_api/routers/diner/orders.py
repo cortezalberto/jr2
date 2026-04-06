@@ -63,6 +63,7 @@ from rest_api.services.events.outbox_service import write_service_call_outbox_ev
 from rest_api.services.domain import RoundService, ServiceCallService, BillingService
 from rest_api.services.domain.round_service import (
     DuplicateRoundError,
+    InsufficientStockError,
     SessionNotActiveError,
     ProductNotAvailableError,
 )
@@ -315,6 +316,14 @@ def submit_round(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Product {e.product_id} not available in this branch",
+        )
+    except InsufficientStockError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Insufficient stock for one or more products",
+                "unavailable_items": e.unavailable_items,
+            },
         )
     except Exception as e:
         logger.error("Failed to submit round", session_id=session_id, error=str(e))
@@ -816,4 +825,74 @@ def get_device_preferences(
         implicit_preferences=preferences,
         last_updated=diner.joined_at,
         visit_count=visit_count,
+    )
+
+
+# =============================================================================
+# Customer Feedback
+# =============================================================================
+
+from pydantic import BaseModel as PydanticBaseModel, Field as PydanticField
+
+
+class FeedbackRequest(PydanticBaseModel):
+    """Request body for submitting feedback."""
+    rating: int = PydanticField(ge=1, le=5, description="Rating from 1 to 5 stars")
+    comment: str | None = PydanticField(None, max_length=500, description="Optional comment")
+
+
+class FeedbackResponse(PydanticBaseModel):
+    """Response after submitting feedback."""
+    id: int
+    rating: int
+    comment: str | None
+    created_at: str
+
+
+@router.post("/feedback", response_model=FeedbackResponse)
+def submit_feedback(
+    body: FeedbackRequest,
+    db: Session = Depends(get_db),
+    table_ctx: dict = Depends(current_table_context),
+) -> FeedbackResponse:
+    """
+    Submit customer feedback after dining.
+    Requires table token authentication.
+    Only one feedback per session is allowed.
+    """
+    from rest_api.models.feedback import Feedback
+
+    session_id = table_ctx["session_id"]
+    branch_id = table_ctx["branch_id"]
+    tenant_id = table_ctx["tenant_id"]
+
+    # Check if feedback already submitted for this session
+    existing = db.scalar(
+        select(Feedback).where(
+            Feedback.session_id == session_id,
+            Feedback.tenant_id == tenant_id,
+        )
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Feedback already submitted for this session",
+        )
+
+    feedback = Feedback(
+        tenant_id=tenant_id,
+        branch_id=branch_id,
+        session_id=session_id,
+        rating=body.rating,
+        comment=body.comment,
+    )
+    db.add(feedback)
+    db.commit()
+    db.refresh(feedback)
+
+    return FeedbackResponse(
+        id=feedback.id,
+        rating=feedback.rating,
+        comment=feedback.comment,
+        created_at=feedback.created_at.isoformat(),
     )

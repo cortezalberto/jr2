@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { CalendarDays, Plus, DollarSign, Pencil, Trash2, PlayCircle, StopCircle, Copy } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -60,8 +61,8 @@ function formatCurrency(cents: number): string {
   return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(cents / 100)
 }
 
-const DAY_NAMES = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
-const ROLE_LABELS: Record<string, string> = { WAITER: 'Mozo', KITCHEN: 'Cocina', MANAGER: 'Gerente', ADMIN: 'Admin', CASHIER: 'Cajero' }
+// DAY_NAMES moved to component
+// ROLE_LABELS moved to component
 
 function getWeekDates(weekStart: string): string[] {
   const start = new Date(weekStart)
@@ -87,7 +88,17 @@ type TabKey = 'week' | 'templates' | 'attendance' | 'costs'
 // -------------------------------------------------------------------------
 
 export function SchedulingPage() {
-  useDocumentTitle('Turnos')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.scheduling.title'))
+
+  const DAY_NAMES = ['Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab', 'Dom']
+  const ROLE_LABELS: Record<string, string> = {
+    WAITER: t('pages.scheduling.roleWaiter'),
+    KITCHEN: t('pages.scheduling.roleKitchen'),
+    MANAGER: t('pages.scheduling.roleManager'),
+    ADMIN: t('pages.scheduling.roleAdmin'),
+    CASHIER: t('pages.scheduling.roleCashier'),
+  }
 
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
 
@@ -139,13 +150,13 @@ export function SchedulingPage() {
   }, [shifts, weekDates])
 
   const handleSaveShift = useCallback(() => {
-    if (!shiftUserName.trim() || !shiftDay) { toast.error('Nombre del empleado y dia son obligatorios'); return }
+    if (!shiftUserName.trim() || !shiftDay) { toast.error(t('pages.scheduling.employeeNameAndDayRequired')); return }
     if (editingShift) {
       setShifts((prev) => prev.map((s) => s.id === editingShift.id ? { ...s, user_name: shiftUserName, day: shiftDay, start_time: shiftStart, end_time: shiftEnd, role: shiftRole } : s))
-      toast.success('Turno actualizado')
+      toast.success(t('pages.scheduling.shiftUpdated'))
     } else {
       setShifts((prev) => [...prev, { id: Date.now(), branch_id: parseInt(selectedBranchId || '0', 10), user_name: shiftUserName, day: shiftDay, start_time: shiftStart, end_time: shiftEnd, role: shiftRole }])
-      toast.success('Turno creado')
+      toast.success(t('pages.scheduling.shiftCreated'))
     }
     setShowShiftModal(false)
     setEditingShift(null)
@@ -167,27 +178,27 @@ export function SchedulingPage() {
   }, [])
 
   const handleSaveTemplate = useCallback(() => {
-    if (!templateName.trim()) { toast.error('El nombre es obligatorio'); return }
+    if (!templateName.trim()) { toast.error(t('pages.scheduling.templateNameRequired')); return }
     if (editingTemplate) {
-      setTemplates((prev) => prev.map((t) => t.id === editingTemplate.id ? { ...t, name: templateName } : t))
-      toast.success('Plantilla actualizada')
+      setTemplates((prev) => prev.map((tmpl) => tmpl.id === editingTemplate.id ? { ...tmpl, name: templateName } : tmpl))
+      toast.success(t('pages.scheduling.templateUpdated'))
     } else {
       setTemplates((prev) => [...prev, { id: Date.now(), name: templateName, items: [], is_active: true }])
-      toast.success('Plantilla creada')
+      toast.success(t('pages.scheduling.templateCreated'))
     }
     setShowTemplateModal(false)
     setEditingTemplate(null)
     setTemplateName('')
-  }, [templateName, editingTemplate])
+  }, [templateName, editingTemplate, t])
 
   const handleDeleteTemplate = useCallback((id: number) => {
-    setTemplates((prev) => prev.filter((t) => t.id !== id))
-    toast.success('Plantilla eliminada')
-  }, [])
+    setTemplates((prev) => prev.filter((tmpl) => tmpl.id !== id))
+    toast.success(t('pages.scheduling.templateDeleted'))
+  }, [t])
 
   const handleApplyTemplate = useCallback(() => {
-    if (!applyTemplateId || !applyWeekStart) { toast.error('Selecciona una plantilla y una semana'); return }
-    toast.success('Plantilla aplicada correctamente')
+    if (!applyTemplateId || !applyWeekStart) { toast.error(t('pages.scheduling.selectTemplateAndWeek')); return }
+    toast.success(t('pages.scheduling.templateApplied'))
     setShowApplyModal(false)
     setApplyTemplateId('')
     setApplyWeekStart('')
@@ -195,22 +206,22 @@ export function SchedulingPage() {
 
   const handleClockIn = useCallback(() => {
     setAttendance((prev) => [{ id: Date.now(), user_name: 'Usuario Actual', clock_in: new Date().toISOString(), clock_out: null, total_hours: null, overtime_hours: null }, ...prev])
-    toast.success('Entrada fichada correctamente')
+    toast.success(t('pages.scheduling.clockedIn'))
   }, [])
 
   const handleClockOut = useCallback(() => {
     setAttendance((prev) => {
       const open = prev.find((r) => r.clock_out === null)
-      if (!open) { toast.error('No hay fichaje de entrada abierto'); return prev }
+      if (!open) { toast.error(t('pages.scheduling.noOpenClockIn')); return prev }
       const now = new Date()
       const hours = (now.getTime() - new Date(open.clock_in).getTime()) / (1000 * 60 * 60)
       return prev.map((r) => r.id === open.id ? { ...r, clock_out: now.toISOString(), total_hours: Math.round(hours * 100) / 100, overtime_hours: Math.round(Math.max(0, hours - 8) * 100) / 100 } : r)
     })
-    toast.success('Salida fichada correctamente')
+    toast.success(t('pages.scheduling.clockedOut'))
   }, [])
 
   const handleGenerateLaborCost = useCallback(() => {
-    if (!costFrom || !costTo) { toast.error('Selecciona un rango de fechas'); return }
+    if (!costFrom || !costTo) { toast.error(t('pages.scheduling.selectDateRange')); return }
     const from = new Date(costFrom)
     const to = new Date(costTo)
     const filtered = attendance.filter((r) => { const d = new Date(r.clock_in); return d >= from && d <= to && r.total_hours !== null })
@@ -220,15 +231,15 @@ export function SchedulingPage() {
   }, [costFrom, costTo, attendance])
 
   const roleOptions = Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }))
-  const templateOptions = useMemo(() => templates.map((t) => ({ value: String(t.id), label: t.name })), [templates])
+  const templateOptions = useMemo(() => templates.map((tmpl) => ({ value: String(tmpl.id), label: tmpl.name })), [templates])
 
   if (!selectedBranchId) {
     return (
-      <PageContainer title="Turnos" description="Gestion de turnos y asistencia">
+      <PageContainer title={t('pages.scheduling.title')} description={t('pages.scheduling.description')}>
         <Card>
           <div className="text-center py-12 text-[var(--text-muted)]">
             <CalendarDays className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-            <p className="text-lg">Selecciona una sucursal desde el Dashboard</p>
+            <p className="text-lg">{t('pages.scheduling.selectBranchMessage')}</p>
           </div>
         </Card>
       </PageContainer>
@@ -236,9 +247,9 @@ export function SchedulingPage() {
   }
 
   return (
-    <PageContainer title="Turnos" description="Turnos semanales, plantillas, asistencia y costos laborales">
+    <PageContainer title={t('pages.scheduling.title')} description={t('pages.scheduling.descriptionFull')}>
       <div className="flex gap-2 mb-6" role="tablist">
-        {([{ key: 'week' as TabKey, label: 'Semana' }, { key: 'templates' as TabKey, label: 'Plantillas' }, { key: 'attendance' as TabKey, label: 'Asistencia' }, { key: 'costs' as TabKey, label: 'Costos' }]).map((tab) => (
+        {([{ key: 'week' as TabKey, label: t('pages.scheduling.tabWeek') }, { key: 'templates' as TabKey, label: t('pages.scheduling.tabTemplates') }, { key: 'attendance' as TabKey, label: t('pages.scheduling.tabAttendance') }, { key: 'costs' as TabKey, label: t('pages.scheduling.tabCosts') }]).map((tab) => (
           <button key={tab.key} role="tab" aria-selected={activeTab === tab.key} onClick={() => setActiveTab(tab.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-orange-500 text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'}`}>{tab.label}</button>
         ))}
       </div>
@@ -249,17 +260,17 @@ export function SchedulingPage() {
           <Card className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <label htmlFor="week-start" className="text-sm font-medium text-[var(--text-secondary)]">Semana del</label>
+                <label htmlFor="week-start" className="text-sm font-medium text-[var(--text-secondary)]">{t('pages.scheduling.weekOf')}</label>
                 <input id="week-start" type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} className="px-3 py-1.5 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Button variant="secondary" size="sm" onClick={() => setShowApplyModal(true)} leftIcon={<Copy className="w-4 h-4" aria-hidden="true" />}>Aplicar Plantilla</Button>
+              <Button variant="secondary" size="sm" onClick={() => setShowApplyModal(true)} leftIcon={<Copy className="w-4 h-4" aria-hidden="true" />}>{t('pages.scheduling.applyTemplate')}</Button>
             </div>
           </Card>
           <Card className="p-4 overflow-x-auto">
-            <table className="w-full text-sm" aria-label="Grilla semanal de turnos">
+            <table className="w-full text-sm" aria-label={t('pages.scheduling.weeklyGridLabel')}>
               <thead>
                 <tr className="border-b border-[var(--border-default)]">
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium w-40">Empleado</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium w-40">{t('pages.scheduling.employee')}</th>
                   {weekDates.map((date, i) => (
                     <th key={date} className="text-center py-2 px-2 text-[var(--text-tertiary)] font-medium">
                       <div>{DAY_NAMES[i]}</div><div className="text-xs">{date.slice(5)}</div>
@@ -269,7 +280,7 @@ export function SchedulingPage() {
               </thead>
               <tbody>
                 {employeeNames.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-[var(--text-muted)]">No hay turnos asignados. Haz clic en una celda para agregar.</td></tr>
+                  <tr><td colSpan={8} className="text-center py-8 text-[var(--text-muted)]">{t('pages.scheduling.noShifts')}</td></tr>
                 ) : employeeNames.map((name) => (
                   <tr key={name} className="border-b border-[var(--border-default)]">
                     <td className="py-2 px-3 font-medium text-[var(--text-primary)]">{name}</td>
@@ -289,7 +300,7 @@ export function SchedulingPage() {
                   </tr>
                 ))}
                 <tr>
-                  <td className="py-2 px-3 text-[var(--text-muted)] text-xs">+ Nuevo turno</td>
+                  <td className="py-2 px-3 text-[var(--text-muted)] text-xs">{t('pages.scheduling.newShift')}</td>
                   {weekDates.map((date) => (
                     <td key={date} className="py-1 px-1 text-center cursor-pointer hover:bg-[var(--bg-tertiary)] transition-colors" onClick={() => openCellShift(date)}>
                       <Plus className="w-4 h-4 mx-auto text-[var(--text-muted)] opacity-30" aria-hidden="true" />
@@ -306,29 +317,29 @@ export function SchedulingPage() {
       {activeTab === 'templates' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Plantillas de Turnos</h3>
-            <Button variant="primary" size="sm" onClick={() => { setEditingTemplate(null); setTemplateName(''); setShowTemplateModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>Crear Plantilla</Button>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.scheduling.shiftTemplates')}</h3>
+            <Button variant="primary" size="sm" onClick={() => { setEditingTemplate(null); setTemplateName(''); setShowTemplateModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>{t('pages.scheduling.createTemplate')}</Button>
           </div>
           {templates.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay plantillas creadas</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.scheduling.noTemplates')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de plantillas">
+              <table className="w-full text-sm" aria-label={t('pages.scheduling.templatesTableLabel')}>
                 <thead><tr className="border-b border-[var(--border-default)]">
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Nombre</th>
-                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Items</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Estado</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Acciones</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.employee')}</th>
+                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.items')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('common.status')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.actionsCol')}</th>
                 </tr></thead>
-                <tbody>{templates.map((t) => (
-                  <tr key={t.id} className="border-b border-[var(--border-default)] hover:bg-[var(--bg-tertiary)]">
-                    <td className="py-2 px-3 font-medium text-[var(--text-primary)]">{t.name}</td>
-                    <td className="py-2 px-3 text-right text-[var(--text-secondary)]">{t.items.length}</td>
-                    <td className="py-2 px-3 text-center"><Badge variant={t.is_active ? 'success' : 'default'}>{t.is_active ? 'Activa' : 'Inactiva'}</Badge></td>
+                <tbody>{templates.map((tmpl) => (
+                  <tr key={tmpl.id} className="border-b border-[var(--border-default)] hover:bg-[var(--bg-tertiary)]">
+                    <td className="py-2 px-3 font-medium text-[var(--text-primary)]">{tmpl.name}</td>
+                    <td className="py-2 px-3 text-right text-[var(--text-secondary)]">{tmpl.items.length}</td>
+                    <td className="py-2 px-3 text-center"><Badge variant={tmpl.is_active ? 'success' : 'default'}>{tmpl.is_active ? t('pages.scheduling.statusActive') : t('pages.scheduling.statusInactive')}</Badge></td>
                     <td className="py-2 px-3 text-center">
                       <div className="flex justify-center gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => { setEditingTemplate(t); setTemplateName(t.name); setShowTemplateModal(true) }} aria-label={`Editar ${t.name}`}><Pencil className="w-3.5 h-3.5" aria-hidden="true" /></Button>
-                        <Button variant="danger" size="sm" onClick={() => handleDeleteTemplate(t.id)} aria-label={`Eliminar ${t.name}`}><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></Button>
+                        <Button variant="secondary" size="sm" onClick={() => { setEditingTemplate(tmpl); setTemplateName(tmpl.name); setShowTemplateModal(true) }} aria-label={`${t('common.edit')} ${tmpl.name}`}><Pencil className="w-3.5 h-3.5" aria-hidden="true" /></Button>
+                        <Button variant="danger" size="sm" onClick={() => handleDeleteTemplate(tmpl.id)} aria-label={`${t('common.delete')} ${tmpl.name}`}><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></Button>
                       </div>
                     </td>
                   </tr>
@@ -344,23 +355,23 @@ export function SchedulingPage() {
         <div className="space-y-4">
           <Card className="p-4">
             <div className="flex gap-3">
-              <Button variant="primary" size="sm" onClick={handleClockIn} leftIcon={<PlayCircle className="w-4 h-4" aria-hidden="true" />}>Fichar Entrada</Button>
-              <Button variant="secondary" size="sm" onClick={handleClockOut} leftIcon={<StopCircle className="w-4 h-4" aria-hidden="true" />}>Fichar Salida</Button>
+              <Button variant="primary" size="sm" onClick={handleClockIn} leftIcon={<PlayCircle className="w-4 h-4" aria-hidden="true" />}>{t('pages.scheduling.clockIn')}</Button>
+              <Button variant="secondary" size="sm" onClick={handleClockOut} leftIcon={<StopCircle className="w-4 h-4" aria-hidden="true" />}>{t('pages.scheduling.clockOut')}</Button>
             </div>
           </Card>
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Registro de Asistencia</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{t('pages.scheduling.attendanceLog')}</h3>
             {attendance.length === 0 ? (
-              <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay registros de asistencia</p>
+              <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.scheduling.noAttendance')}</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" aria-label="Registro de asistencia">
+                <table className="w-full text-sm" aria-label={t('pages.scheduling.attendanceTableLabel')}>
                   <thead><tr className="border-b border-[var(--border-default)]">
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Empleado</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Entrada</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Salida</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Horas</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Horas Extra</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.employee')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.entryCol')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.exitCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.hoursCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.overtimeCol')}</th>
                   </tr></thead>
                   <tbody>{attendance.map((r) => (
                     <tr key={r.id} className="border-b border-[var(--border-default)] hover:bg-[var(--bg-tertiary)]">
@@ -384,35 +395,35 @@ export function SchedulingPage() {
           <Card className="p-6">
             <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4 flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-[var(--primary-500)]" aria-hidden="true" />
-              Costos Laborales
+              {t('pages.scheduling.laborCosts')}
             </h3>
             <div className="flex gap-4 items-end">
               <div>
-                <label htmlFor="cost-from" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Desde</label>
+                <label htmlFor="cost-from" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.from')}</label>
                 <input id="cost-from" type="date" value={costFrom} onChange={(e) => setCostFrom(e.target.value)} className="px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="cost-to" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Hasta</label>
+                <label htmlFor="cost-to" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.to')}</label>
                 <input id="cost-to" type="date" value={costTo} onChange={(e) => setCostTo(e.target.value)} className="px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Button variant="primary" size="sm" onClick={handleGenerateLaborCost}>Calcular</Button>
+              <Button variant="primary" size="sm" onClick={handleGenerateLaborCost}>{t('pages.scheduling.calculate')}</Button>
             </div>
           </Card>
           {laborReport && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Total Horas</p><p className="text-2xl font-bold text-[var(--text-primary)]">{laborReport.total_hours}h</p></Card>
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Horas Extra</p><p className="text-2xl font-bold text-yellow-400">{laborReport.total_overtime}h</p></Card>
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Costo Estimado</p><p className="text-2xl font-bold text-green-400">{formatCurrency(laborReport.estimated_cost_cents)}</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.scheduling.totalHours')}</p><p className="text-2xl font-bold text-[var(--text-primary)]">{laborReport.total_hours}h</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.scheduling.overtimeCol')}</p><p className="text-2xl font-bold text-yellow-400">{laborReport.total_overtime}h</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.scheduling.estimatedCost')}</p><p className="text-2xl font-bold text-green-400">{formatCurrency(laborReport.estimated_cost_cents)}</p></Card>
               </div>
               <Card className="p-6">
-                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">Por Rol</h4>
+                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">{t('pages.scheduling.byRole')}</h4>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-[var(--border-default)]">
-                      <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Rol</th>
-                      <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Horas</th>
-                      <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Horas Extra</th>
+                      <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.roleCol')}</th>
+                      <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.hoursCol')}</th>
+                      <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.scheduling.overtimeCol')}</th>
                     </tr></thead>
                     <tbody>{laborReport.by_role.map((r) => (
                       <tr key={r.role} className="border-b border-[var(--border-default)]">
@@ -434,31 +445,31 @@ export function SchedulingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowShiftModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingShift ? 'Editar Turno' : 'Nuevo Turno'}</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingShift ? t('pages.scheduling.editShift') : t('pages.scheduling.newShiftTitle')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="shift-emp" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Empleado</label>
+                <label htmlFor="shift-emp" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.employee')}</label>
                 <input id="shift-emp" type="text" value={shiftUserName} onChange={(e) => setShiftUserName(e.target.value)} placeholder="Nombre del empleado" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="shift-day" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Dia</label>
+                <label htmlFor="shift-day" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.day')}</label>
                 <input id="shift-day" type="date" value={shiftDay} onChange={(e) => setShiftDay(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="shift-start" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Entrada</label>
+                  <label htmlFor="shift-start" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.entryCol')}</label>
                   <input id="shift-start" type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
                 <div>
-                  <label htmlFor="shift-end" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Salida</label>
+                  <label htmlFor="shift-end" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.exitCol')}</label>
                   <input id="shift-end" type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
               </div>
-              <Select id="shift-role" label="Rol" options={roleOptions} value={shiftRole} onChange={(e) => setShiftRole(e.target.value)} />
+              <Select id="shift-role" label={t('pages.scheduling.role')} options={roleOptions} value={shiftRole} onChange={(e) => setShiftRole(e.target.value)} />
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowShiftModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleSaveShift}>{editingShift ? 'Guardar' : 'Crear'}</Button>
+              <Button variant="secondary" onClick={() => setShowShiftModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleSaveShift}>{editingShift ? t('common.save') : t('common.create')}</Button>
             </div>
           </div>
         </div>
@@ -469,16 +480,16 @@ export function SchedulingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowTemplateModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingTemplate ? 'Editar Plantilla' : 'Nueva Plantilla'}</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingTemplate ? t('pages.scheduling.editTemplate') : t('pages.scheduling.newTemplateTitle')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="tmpl-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Nombre</label>
+                <label htmlFor="tmpl-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.employee')}</label>
                 <input id="tmpl-name" type="text" value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Ej: Turno Fin de Semana" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowTemplateModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleSaveTemplate}>{editingTemplate ? 'Guardar' : 'Crear'}</Button>
+              <Button variant="secondary" onClick={() => setShowTemplateModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleSaveTemplate}>{editingTemplate ? t('common.save') : t('common.create')}</Button>
             </div>
           </div>
         </div>
@@ -489,17 +500,17 @@ export function SchedulingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowApplyModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Aplicar Plantilla</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{t('pages.scheduling.applyTemplate')}</h3>
             <div className="space-y-4">
-              <Select id="apply-tmpl" label="Plantilla" options={templateOptions} value={applyTemplateId} onChange={(e) => setApplyTemplateId(e.target.value)} />
+              <Select id="apply-tmpl" label={t('pages.scheduling.template')} options={templateOptions} value={applyTemplateId} onChange={(e) => setApplyTemplateId(e.target.value)} />
               <div>
-                <label htmlFor="apply-week" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Semana del</label>
+                <label htmlFor="apply-week" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.scheduling.weekOf')}</label>
                 <input id="apply-week" type="date" value={applyWeekStart} onChange={(e) => setApplyWeekStart(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowApplyModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleApplyTemplate}>Aplicar</Button>
+              <Button variant="secondary" onClick={() => setShowApplyModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleApplyTemplate}>{t('pages.scheduling.apply')}</Button>
             </div>
           </div>
         </div>

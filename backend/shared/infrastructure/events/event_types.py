@@ -19,6 +19,7 @@ ROUND_READY = "ROUND_READY"
 ROUND_SERVED = "ROUND_SERVED"
 ROUND_CANCELED = "ROUND_CANCELED"
 ROUND_ITEM_DELETED = "ROUND_ITEM_DELETED"  # Waiter deleted item from pending/confirmed round
+ROUND_ITEM_VOIDED = "ROUND_ITEM_VOIDED"  # Item voided from submitted/in-kitchen round
 
 # =============================================================================
 # Service call events
@@ -46,6 +47,7 @@ TABLE_SESSION_STARTED = "TABLE_SESSION_STARTED"
 TABLE_CLEARED = "TABLE_CLEARED"
 # CROSS-SYS-01 FIX: Added TABLE_STATUS_CHANGED for consistency with ws_gateway
 TABLE_STATUS_CHANGED = "TABLE_STATUS_CHANGED"
+TABLE_TRANSFERRED = "TABLE_TRANSFERRED"  # Table moved to different table or waiter reassigned
 
 # =============================================================================
 # Kitchen ticket events

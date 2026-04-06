@@ -7,6 +7,8 @@
  * @see https://web.dev/vitals/
  */
 
+import { logger } from './logger'
+
 export interface WebVitalsMetric {
     name: 'LCP' | 'CLS' | 'TTFB' | 'INP' | 'FCP'
     value: number
@@ -66,7 +68,7 @@ export async function reportWebVitals(onReport: ReportHandler): Promise<void> {
         onFCP(createReporter('FCP'))
     } catch (error) {
         // web-vitals not available, silently fail
-        console.warn('[WebVitals] Failed to initialize:', error)
+        logger.warn('WebVitals', 'Failed to initialize', error)
     }
 }
 
@@ -88,9 +90,7 @@ export function consoleReporter(metric: WebVitalsMetric): void {
         ? ' (dev mode - production will be faster)'
         : ''
 
-    console.log(
-        `${emoji} [WebVitals] ${metric.name}: ${metric.value.toFixed(2)} (${metric.rating})${devNote}`
-    )
+    logger.info('WebVitals', `${emoji} ${metric.name}: ${metric.value.toFixed(2)} (${metric.rating})${devNote}`)
 }
 
 /**

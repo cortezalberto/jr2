@@ -5,6 +5,7 @@
  */
 
 import { useMemo, useCallback, useActionState, useEffect, useState, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import {
   Plus,
   Pencil,
@@ -68,16 +69,20 @@ import type {
 } from '../types'
 import type { FormState } from '../types/form'
 
-const DIFFICULTY_OPTIONS = [
-  { value: 'EASY', label: 'Fácil' },
-  { value: 'MEDIUM', label: 'Media' },
-  { value: 'HARD', label: 'Difícil' },
-]
+function getDifficultyOptions(t: (key: string) => string) {
+  return [
+    { value: 'EASY', label: t('pages.recipes.difficultyEasy') },
+    { value: 'MEDIUM', label: t('pages.recipes.difficultyMedium') },
+    { value: 'HARD', label: t('pages.recipes.difficultyHard') },
+  ]
+}
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-  EASY: 'Fácil',
-  MEDIUM: 'Media',
-  HARD: 'Difícil',
+function getDifficultyLabels(t: (key: string) => string): Record<string, string> {
+  return {
+    EASY: t('pages.recipes.difficultyEasy'),
+    MEDIUM: t('pages.recipes.difficultyMedium'),
+    HARD: t('pages.recipes.difficultyHard'),
+  }
 }
 
 const DIFFICULTY_COLORS: Record<string, 'success' | 'warning' | 'danger'> = {
@@ -149,50 +154,58 @@ function getAllergenIcon(allergen: { icon?: string | null; name: string }): stri
 }
 
 // Dietary tags from canonical model (ProductDietaryProfile)
-const DIETARY_TAG_OPTIONS = [
-  { value: 'Vegetariano', label: 'Vegetariano', icon: '🥬' },
-  { value: 'Vegano', label: 'Vegano', icon: '🌱' },
-  { value: 'Sin Gluten', label: 'Sin Gluten', icon: '🌾' },
-  { value: 'Sin Lácteos', label: 'Sin Lácteos', icon: '🥛' },
-  { value: 'Apto Celíaco', label: 'Apto Celíaco', icon: '✓' },
-  { value: 'Keto', label: 'Keto', icon: '🥑' },
-  { value: 'Bajo en Sodio', label: 'Bajo en Sodio', icon: '🧂' },
-] as const
+function getDietaryTagOptions(t: (key: string) => string) {
+  return [
+    { value: 'Vegetariano', label: t('pages.recipes.dietaryVegetarian'), icon: '🥬' },
+    { value: 'Vegano', label: t('pages.recipes.dietaryVegan'), icon: '🌱' },
+    { value: 'Sin Gluten', label: t('pages.recipes.dietaryGlutenFree'), icon: '🌾' },
+    { value: 'Sin Lácteos', label: t('pages.recipes.dietaryDairyFree'), icon: '🥛' },
+    { value: 'Apto Celíaco', label: t('pages.recipes.dietaryCeliac'), icon: '✓' },
+    { value: 'Keto', label: t('pages.recipes.dietaryKeto'), icon: '🥑' },
+    { value: 'Bajo en Sodio', label: t('pages.recipes.dietaryLowSodium'), icon: '🧂' },
+  ]
+}
 
 // Cooking methods from canonical model (Phase 3 - planteo.md)
-const COOKING_METHOD_OPTIONS = [
-  { value: 'horneado', label: 'Horneado', icon: '🔥' },
-  { value: 'frito', label: 'Frito', icon: '🍳' },
-  { value: 'grillado', label: 'Grillado/Parrilla', icon: '♨️' },
-  { value: 'crudo', label: 'Crudo', icon: '🥗' },
-  { value: 'hervido', label: 'Hervido', icon: '🫕' },
-  { value: 'vapor', label: 'Al Vapor', icon: '💨' },
-  { value: 'salteado', label: 'Salteado', icon: '🥘' },
-  { value: 'braseado', label: 'Braseado', icon: '🍲' },
-] as const
+function getCookingMethodOptions(t: (key: string) => string) {
+  return [
+    { value: 'horneado', label: t('pages.recipes.methodBaked'), icon: '🔥' },
+    { value: 'frito', label: t('pages.recipes.methodFried'), icon: '🍳' },
+    { value: 'grillado', label: t('pages.recipes.methodGrilled'), icon: '♨️' },
+    { value: 'crudo', label: t('pages.recipes.methodRaw'), icon: '🥗' },
+    { value: 'hervido', label: t('pages.recipes.methodBoiled'), icon: '🫕' },
+    { value: 'vapor', label: t('pages.recipes.methodSteamed'), icon: '💨' },
+    { value: 'salteado', label: t('pages.recipes.methodSauteed'), icon: '🥘' },
+    { value: 'braseado', label: t('pages.recipes.methodBraised'), icon: '🍲' },
+  ]
+}
 
 // Flavor profiles from canonical model (Phase 3 - planteo.md)
-const FLAVOR_OPTIONS = [
-  { value: 'suave', label: 'Suave', icon: '😌' },
-  { value: 'intenso', label: 'Intenso', icon: '💪' },
-  { value: 'dulce', label: 'Dulce', icon: '🍯' },
-  { value: 'salado', label: 'Salado', icon: '🧂' },
-  { value: 'acido', label: 'Ácido', icon: '🍋' },
-  { value: 'amargo', label: 'Amargo', icon: '☕' },
-  { value: 'umami', label: 'Umami', icon: '🍄' },
-  { value: 'picante', label: 'Picante', icon: '🌶️' },
-] as const
+function getFlavorOptions(t: (key: string) => string) {
+  return [
+    { value: 'suave', label: t('pages.recipes.flavorMild'), icon: '😌' },
+    { value: 'intenso', label: t('pages.recipes.flavorIntense'), icon: '💪' },
+    { value: 'dulce', label: t('pages.recipes.flavorSweet'), icon: '🍯' },
+    { value: 'salado', label: t('pages.recipes.flavorSalty'), icon: '🧂' },
+    { value: 'acido', label: t('pages.recipes.flavorSour'), icon: '🍋' },
+    { value: 'amargo', label: t('pages.recipes.flavorBitter'), icon: '☕' },
+    { value: 'umami', label: t('pages.recipes.flavorUmami'), icon: '🍄' },
+    { value: 'picante', label: t('pages.recipes.flavorSpicy'), icon: '🌶️' },
+  ]
+}
 
 // Texture profiles from canonical model (Phase 3 - planteo.md)
-const TEXTURE_OPTIONS = [
-  { value: 'crocante', label: 'Crocante', icon: '🥨' },
-  { value: 'cremoso', label: 'Cremoso', icon: '🍦' },
-  { value: 'tierno', label: 'Tierno', icon: '🍖' },
-  { value: 'firme', label: 'Firme', icon: '🥩' },
-  { value: 'esponjoso', label: 'Esponjoso', icon: '🧁' },
-  { value: 'gelatinoso', label: 'Gelatinoso', icon: '🍮' },
-  { value: 'granulado', label: 'Granulado', icon: '🍚' },
-] as const
+function getTextureOptions(t: (key: string) => string) {
+  return [
+    { value: 'crocante', label: t('pages.recipes.textureCrunchy'), icon: '🥨' },
+    { value: 'cremoso', label: t('pages.recipes.textureCreamy'), icon: '🍦' },
+    { value: 'tierno', label: t('pages.recipes.textureTender'), icon: '🍖' },
+    { value: 'firme', label: t('pages.recipes.textureFirm'), icon: '🥩' },
+    { value: 'esponjoso', label: t('pages.recipes.textureFluffy'), icon: '🧁' },
+    { value: 'gelatinoso', label: t('pages.recipes.textureGelatinous'), icon: '🍮' },
+    { value: 'granulado', label: t('pages.recipes.textureGranular'), icon: '🍚' },
+  ]
+}
 
 const initialFormData: RecipeFormData = {
   branch_id: '',
@@ -240,7 +253,8 @@ const initialFormData: RecipeFormData = {
 }
 
 export default function RecipesPage() {
-  useDocumentTitle('Recetas')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.recipes.title'))
 
   const recipes = useRecipeStore(selectRecipes)
   const isLoading = useRecipeStore(selectRecipeLoading)
@@ -279,6 +293,14 @@ export default function RecipesPage() {
       (b) => b.is_active && userBranchIds.includes(Number(b.id))
     )
   }, [allBranches, userIsAdmin, userBranchIds])
+
+  // Translated option lists (memoized to avoid recreation on every render)
+  const DIFFICULTY_OPTIONS = useMemo(() => getDifficultyOptions(t), [t])
+  const DIFFICULTY_LABELS = useMemo(() => getDifficultyLabels(t), [t])
+  const DIETARY_TAG_OPTIONS = useMemo(() => getDietaryTagOptions(t), [t])
+  const COOKING_METHOD_OPTIONS = useMemo(() => getCookingMethodOptions(t), [t])
+  const FLAVOR_OPTIONS = useMemo(() => getFlavorOptions(t), [t])
+  const TEXTURE_OPTIONS = useMemo(() => getTextureOptions(t), [t])
 
   // Modal and dialog state
   const modal = useFormModal<RecipeFormData, Recipe>(initialFormData)
@@ -459,15 +481,15 @@ export default function RecipesPage() {
       try {
         if (modal.selectedItem) {
           await updateRecipeAsync(modal.selectedItem.id, data)
-          toast.success('Receta actualizada correctamente')
+          toast.success(t('pages.recipes.recipeUpdated'))
         } else {
           await createRecipeAsync(data)
-          toast.success('Receta creada correctamente')
+          toast.success(t('pages.recipes.recipeCreated'))
         }
         return { isSuccess: true, message: 'Guardado correctamente' }
       } catch (error) {
         const message = handleError(error, 'RecipesPage.submitAction')
-        toast.error(`Error al guardar la receta: ${message}`)
+        toast.error(`${t('pages.recipes.saveError')}: ${message}`)
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -554,11 +576,11 @@ export default function RecipesPage() {
 
     try {
       await deleteRecipeAsync(deleteDialog.item.id)
-      toast.success('Receta eliminada correctamente')
+      toast.success(t('pages.recipes.recipeDeleted'))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'RecipesPage.handleDelete')
-      toast.error(`Error al eliminar la receta: ${message}`)
+      toast.error(`${t('pages.recipes.deleteError')}: ${message}`)
     }
   }, [deleteDialog, deleteRecipeAsync])
 
@@ -568,13 +590,13 @@ export default function RecipesPage() {
       try {
         const updatedRecipe = await ingestRecipeAsync(recipe.id)
         if (updatedRecipe.is_ingested) {
-          toast.success('Receta ingresada al chatbot correctamente')
+          toast.success(t('pages.recipes.ingestSuccess'))
         } else {
-          toast.error('Error al ingestar la receta')
+          toast.error(t('pages.recipes.ingestError'))
         }
       } catch (error) {
         const message = handleError(error, 'RecipesPage.handleIngest')
-        toast.error(`Error al ingestar la receta: ${message}`)
+        toast.error(`${t('pages.recipes.ingestError')}: ${message}`)
       }
     },
     [ingestRecipeAsync]
@@ -699,7 +721,7 @@ export default function RecipesPage() {
   const getBranchName = useCallback(
     (branchId: string) => {
       const branch = allBranches.find((b) => b.id === branchId)
-      return branch?.name || 'Desconocida'
+      return branch?.name || t('pages.recipes.unknownBranch')
     },
     [allBranches]
   )
@@ -708,7 +730,7 @@ export default function RecipesPage() {
     () => [
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('pages.recipes.title'),
         sortable: true,
         render: (recipe) => (
           <div className="flex items-center gap-2">
@@ -727,12 +749,12 @@ export default function RecipesPage() {
       },
       {
         key: 'branch_id',
-        label: 'Sucursal',
+        label: t('pages.recipes.branchCol'),
         render: (recipe) => getBranchName(recipe.branch_id),
       },
       {
         key: 'servings',
-        label: 'Porciones',
+        label: t('pages.recipes.servingsCol'),
         render: (recipe) => (
           <div className="flex items-center gap-1 text-sm">
             <Users className="w-3 h-3" />
@@ -742,7 +764,7 @@ export default function RecipesPage() {
       },
       {
         key: 'time',
-        label: 'Tiempo',
+        label: t('pages.recipes.timeCol'),
         render: (recipe) => {
           const total =
             (recipe.prep_time_minutes || 0) +
@@ -759,7 +781,7 @@ export default function RecipesPage() {
       },
       {
         key: 'difficulty',
-        label: 'Dificultad',
+        label: t('pages.recipes.difficultyCol'),
         render: (recipe) =>
           recipe.difficulty ? (
             <UIBadge variant={DIFFICULTY_COLORS[recipe.difficulty]}>
@@ -771,7 +793,7 @@ export default function RecipesPage() {
       },
       {
         key: 'is_ingested',
-        label: 'RAG',
+        label: t('pages.recipes.ragCol'),
         render: (recipe) => (
           <UIBadge variant={recipe.is_ingested ? 'success' : 'default'}>
             {recipe.is_ingested ? 'Ingresado' : 'Pendiente'}
@@ -780,7 +802,7 @@ export default function RecipesPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('pages.recipes.statusCol'),
         render: (recipe) => (
           <UIBadge variant={recipe.is_active ? 'success' : 'danger'}>
             {recipe.is_active ? 'Activo' : 'Inactivo'}
@@ -846,7 +868,7 @@ export default function RecipesPage() {
       />
 
       <PageContainer
-        title="Recetas"
+        title={t('pages.recipes.title')}
         actions={
           <div className="flex items-center gap-4">
             <Select
@@ -872,7 +894,7 @@ export default function RecipesPage() {
           <Table
             columns={columns}
             data={paginatedRecipes}
-            emptyMessage="No hay recetas creadas. Crea una para comenzar."
+            emptyMessage={t('pages.recipes.noRecipes')}
             isLoading={isLoading}
           />
           <Pagination
@@ -888,7 +910,7 @@ export default function RecipesPage() {
         <Modal
           isOpen={modal.isOpen}
           onClose={modal.close}
-          title={modal.selectedItem ? 'Editar Receta' : 'Nueva Receta'}
+          title={modal.selectedItem ? t('pages.recipes.editRecipe') : t('pages.recipes.newRecipe')}
           size="xl"
           footer={
             <>
@@ -896,7 +918,7 @@ export default function RecipesPage() {
                 Cancelar
               </Button>
               <Button type="submit" form="recipe-form" isLoading={isPending}>
-                {modal.selectedItem ? 'Guardar Cambios' : 'Crear Receta'}
+                {modal.selectedItem ? t('pages.recipes.saveChanges') : t('pages.recipes.createRecipe')}
               </Button>
             </>
           }
@@ -909,7 +931,7 @@ export default function RecipesPage() {
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <Select
-                label="Sucursal"
+                label={t('pages.recipes.branchCol')}
                 name="branch_id"
                 value={modal.formData.branch_id}
                 onChange={(e) =>
@@ -928,7 +950,7 @@ export default function RecipesPage() {
               />
 
               <Input
-                label="Nombre"
+                label={t('common.name')}
                 name="name"
                 placeholder="Ej: Milanesa Napolitana"
                 value={modal.formData.name}
@@ -942,7 +964,7 @@ export default function RecipesPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <Select
-                label="Categoría"
+                label={t('pages.categories.title')}
                 name="category_id"
                 value={modal.formData.category_id || ''}
                 onChange={(e) =>
@@ -960,7 +982,7 @@ export default function RecipesPage() {
               />
 
               <Select
-                label="Subcategoría"
+                label={t('pages.subcategories.title')}
                 name="subcategory_id"
                 value={modal.formData.subcategory_id || ''}
                 onChange={(e) =>
@@ -980,7 +1002,7 @@ export default function RecipesPage() {
 
             <div className="grid grid-cols-1 gap-4">
               <Select
-                label="Tipo de Cocina"
+                label={t('pages.recipes.cuisineType')}
                 name="cuisine_type"
                 value={modal.formData.cuisine_type || ''}
                 onChange={(e) =>
@@ -997,7 +1019,7 @@ export default function RecipesPage() {
             </div>
 
             <Textarea
-              label="Descripción"
+              label={t('common.description')}
               name="description"
               placeholder="Breve descripción del plato..."
               value={modal.formData.description || ''}
@@ -1013,7 +1035,7 @@ export default function RecipesPage() {
             {/* Time, Servings, and Difficulty */}
             <div className="grid grid-cols-4 gap-4">
               <Input
-                label="Porciones"
+                label={t('pages.recipes.servings')}
                 name="servings"
                 type="number"
                 min={1}
@@ -1028,7 +1050,7 @@ export default function RecipesPage() {
               />
 
               <Input
-                label="Tiempo Prep. (min)"
+                label={t('pages.recipes.prepTime')}
                 name="prep_time_minutes"
                 type="number"
                 min={0}
@@ -1043,7 +1065,7 @@ export default function RecipesPage() {
               />
 
               <Input
-                label="Tiempo Cocción (min)"
+                label={t('pages.recipes.cookTime')}
                 name="cook_time_minutes"
                 type="number"
                 min={0}
@@ -1058,7 +1080,7 @@ export default function RecipesPage() {
               />
 
               <Select
-                label="Dificultad"
+                label={t('pages.recipes.difficulty')}
                 name="difficulty"
                 value={modal.formData.difficulty || ''}
                 onChange={(e) =>
@@ -1068,7 +1090,7 @@ export default function RecipesPage() {
                       (e.target.value as RecipeDifficulty) || undefined,
                   }))
                 }
-                placeholder="Seleccionar..."
+                placeholder={t('pages.recipes.select')}
                 options={DIFFICULTY_OPTIONS}
               />
             </div>
@@ -1077,7 +1099,7 @@ export default function RecipesPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-[var(--text-secondary)]">
-                  Ingredientes
+                  {t('pages.recipes.ingredients')}
                 </label>
                 <Button
                   type="button"
@@ -1253,7 +1275,7 @@ export default function RecipesPage() {
 
             {/* Chef Notes */}
             <Textarea
-              label="Notas del Chef"
+              label={t('pages.recipes.chefNotes')}
               name="chef_notes"
               placeholder="Consejos, trucos o información adicional..."
               value={modal.formData.chef_notes || ''}
@@ -1307,7 +1329,7 @@ export default function RecipesPage() {
               )}
               {(modal.formData.allergen_ids?.length || 0) > 0 && (
                 <div className="text-xs text-[var(--text-muted)] mt-2">
-                  <span>Seleccionados: </span>
+                  <span>{t('pages.recipes.selectedAllergens')}</span>
                   {modal.formData.allergen_ids
                     ?.map((id) => {
                       const allergen = activeAllergens.find((a) => parseInt(a.id, 10) === id)
@@ -1327,7 +1349,7 @@ export default function RecipesPage() {
             {/* Dietary Tags - Checkboxes from canonical model */}
             <div>
               <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Etiquetas Dietéticas
+                {t('pages.recipes.dietaryTags')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {DIETARY_TAG_OPTIONS.map((option) => {
@@ -1353,7 +1375,7 @@ export default function RecipesPage() {
             {/* Cooking Methods - Phase 3 planteo.md */}
             <div>
               <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Métodos de Cocción
+                {t('pages.recipes.cookingMethods')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {COOKING_METHOD_OPTIONS.map((option) => {
@@ -1388,7 +1410,7 @@ export default function RecipesPage() {
                     }
                     className="w-4 h-4 rounded border-neutral-600 bg-neutral-700 text-[var(--primary-500)] focus:ring-[var(--primary-500)] focus:ring-offset-neutral-800"
                   />
-                  <span>🛢️ Usa aceite en la preparación</span>
+                  <span>🛢️ {t('pages.recipes.usesOil')}</span>
                 </label>
               </div>
             </div>
@@ -1396,7 +1418,7 @@ export default function RecipesPage() {
             {/* Sensory Profile - Flavors - Phase 3 planteo.md */}
             <div>
               <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Perfil de Sabores
+                {t('pages.recipes.flavorProfile')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {FLAVOR_OPTIONS.map((option) => {
@@ -1422,7 +1444,7 @@ export default function RecipesPage() {
             {/* Sensory Profile - Textures - Phase 3 planteo.md */}
             <div>
               <label className="block text-sm font-medium text-neutral-300 mb-2">
-                Perfil de Texturas
+                {t('pages.recipes.textureProfile')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {TEXTURE_OPTIONS.map((option) => {
@@ -1448,7 +1470,7 @@ export default function RecipesPage() {
             {/* Storage and Plating */}
             <div className="grid grid-cols-2 gap-4">
               <Textarea
-                label="Instrucciones de Almacenamiento"
+                label={t('pages.recipes.storageInstructions')}
                 name="storage_instructions"
                 placeholder="Cómo conservar el plato..."
                 value={modal.formData.storage_instructions || ''}
@@ -1462,7 +1484,7 @@ export default function RecipesPage() {
               />
 
               <Textarea
-                label="Tips de Presentación"
+                label={t('pages.recipes.presentationTips')}
                 name="presentation_tips"
                 placeholder="Cómo presentar el plato..."
                 value={modal.formData.presentation_tips || ''}
@@ -1479,7 +1501,7 @@ export default function RecipesPage() {
             {/* Cost and Media */}
             <div className="grid grid-cols-3 gap-4">
               <Input
-                label="Costo (centavos)"
+                label={t('pages.recipes.costCents')}
                 name="cost_cents"
                 type="number"
                 min={0}
@@ -1494,7 +1516,7 @@ export default function RecipesPage() {
               />
 
               <Input
-                label="Calorías por Porción"
+                label={t('pages.recipes.caloriesPerServing')}
                 name="calories_per_serving"
                 type="number"
                 min={0}
@@ -1509,7 +1531,7 @@ export default function RecipesPage() {
               />
 
               <Input
-                label="URL de Imagen"
+                label={t('pages.recipes.imageUrl')}
                 name="image"
                 placeholder="https://..."
                 value={modal.formData.image || ''}
@@ -1523,7 +1545,7 @@ export default function RecipesPage() {
             </div>
 
             <Toggle
-              label="Activo"
+              label={t('pages.recipes.activeToggle')}
               name="is_active"
               checked={modal.formData.is_active}
               onChange={(e) =>
@@ -1541,9 +1563,9 @@ export default function RecipesPage() {
           isOpen={deleteDialog.isOpen}
           onClose={deleteDialog.close}
           onConfirm={handleDelete}
-          title="Eliminar Receta"
-          message={`¿Estás seguro de eliminar "${deleteDialog.item?.name}"?`}
-          confirmLabel="Eliminar"
+          title={t('pages.recipes.deleteConfirmTitle')}
+          message={t('pages.recipes.deleteConfirmMessage', { name: deleteDialog.item?.name })}
+          confirmLabel={t('common.delete')}
         />
       </PageContainer>
     </>

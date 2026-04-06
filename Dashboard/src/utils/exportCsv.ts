@@ -3,6 +3,8 @@
  * Exports data to CSV format with Excel compatibility (BOM prefix)
  */
 
+import { logWarning } from './logger'
+
 export interface ColumnConfig<T> {
   key: keyof T
   header: string
@@ -46,7 +48,7 @@ export function exportToCsv<T extends Record<string, unknown>>(
   columns?: ColumnConfig<T>[]
 ): void {
   if (data.length === 0) {
-    console.warn('exportToCsv: No data to export')
+    logWarning('No data to export', 'exportToCsv')
     return
   }
 

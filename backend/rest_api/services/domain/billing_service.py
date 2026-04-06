@@ -26,6 +26,7 @@ from shared.utils.schemas import (
     CheckItemOutput,
     PaymentOutput,
 )
+from rest_api.services.domain.audit_service import AuditService
 
 logger = get_logger(__name__)
 
@@ -56,6 +57,7 @@ class BillingService:
     
     def __init__(self, db: Session):
         self._db = db
+        self._audit = AuditService(db)
     
     def calculate_session_total(self, session_id: int) -> int:
         """Calculate total from all non-canceled rounds."""
@@ -132,13 +134,23 @@ class BillingService:
         safe_commit(self._db)
         self._db.refresh(check)
         
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=None,
+            user_email=None,
+            action="CREATE",
+            entity_type="check",
+            entity_id=check.id,
+            new_values={"total_cents": total_cents, "session_id": session_id, "status": "OPEN"},
+        )
+
         logger.info(
             "Check created",
             check_id=check.id,
             session_id=session_id,
             total_cents=total_cents,
         )
-        
+
         return check, True
     
     def request_check(
@@ -213,6 +225,21 @@ class BillingService:
         safe_commit(self._db)
         self._db.refresh(check)
         
+        self._audit.log(
+            tenant_id=tenant_id,
+            user_id=None,
+            user_email=None,
+            action="CREATE",
+            entity_type="check",
+            entity_id=check.id,
+            new_values={
+                "total_cents": total_cents,
+                "session_id": session_id,
+                "status": "REQUESTED",
+                "items_count": items_count,
+            },
+        )
+
         logger.info(
             "Check requested",
             check_id=check.id,
@@ -220,7 +247,7 @@ class BillingService:
             total_cents=total_cents,
             items_count=items_count,
         )
-        
+
         return check, items_count, True
     
     def _get_session_items_count(self, session_id: int) -> int:
@@ -354,6 +381,22 @@ class BillingService:
         safe_commit(self._db)
         self._db.refresh(payment)
         
+        self._audit.log(
+            tenant_id=check.tenant_id,
+            user_id=None,
+            user_email=None,
+            action="PAYMENT",
+            entity_type="payment",
+            entity_id=payment.id,
+            new_values={
+                "check_id": check_id,
+                "amount_cents": amount_cents,
+                "provider": provider,
+                "status": "APPROVED",
+                "check_status": check.status,
+            },
+        )
+
         logger.info(
             "Payment recorded",
             payment_id=payment.id,
@@ -361,7 +404,7 @@ class BillingService:
             amount_cents=amount_cents,
             check_status=check.status,
         )
-        
+
         return payment
     
     def record_manual_payment(
@@ -438,6 +481,24 @@ class BillingService:
         self._db.refresh(payment)
         self._db.refresh(check)
         
+        self._audit.log(
+            tenant_id=check.tenant_id,
+            user_id=waiter_id,
+            user_email=None,
+            action="PAYMENT",
+            entity_type="payment",
+            entity_id=payment.id,
+            new_values={
+                "check_id": check_id,
+                "amount_cents": amount_cents,
+                "provider": provider,
+                "manual_method": manual_method,
+                "waiter_id": waiter_id,
+                "status": "APPROVED",
+                "check_status": check.status,
+            },
+        )
+
         logger.info(
             "Manual payment recorded",
             payment_id=payment.id,
@@ -447,5 +508,5 @@ class BillingService:
             waiter_id=waiter_id,
             check_status=check.status,
         )
-        
+
         return payment, check

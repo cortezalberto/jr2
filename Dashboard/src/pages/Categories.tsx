@@ -1,5 +1,6 @@
 import { useMemo, useCallback, useActionState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2, GripVertical } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -50,8 +51,9 @@ const initialFormData: CategoryFormData = {
 }
 
 export function CategoriesPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Categorías')
+  useDocumentTitle(t('pages.categories.title'))
 
   const navigate = useNavigate()
   const categories = useCategoryStore(selectCategories)
@@ -129,15 +131,15 @@ export function CategoriesPage() {
       try {
         if (modal.selectedItem) {
           await updateCategoryAsync(modal.selectedItem.id, data)
-          toast.success('Categoria actualizada correctamente')
+          toast.success(t('toasts.updateSuccessFem', { entity: t('pages.categories.title') }))
         } else {
           await createCategoryAsync(data)
-          toast.success('Categoria creada correctamente')
+          toast.success(t('toasts.createSuccessFem', { entity: t('pages.categories.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'CategoriesPage.submitAction')
-        toast.error(`Error al guardar la categoria: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.categories.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -157,7 +159,7 @@ export function CategoriesPage() {
   // SPRINT 11: Simplified modal handlers using custom hook
   const openCreateModal = useCallback(() => {
     if (!selectedBranchId) {
-      toast.error('Selecciona una sucursal primero')
+      toast.error(t('common.selectBranchFirst'))
       return
     }
     const orders = branchCategories.map((c) => c.order).filter((o) => typeof o === 'number' && !isNaN(o))
@@ -191,7 +193,7 @@ export function CategoriesPage() {
       const result = deleteCategoryWithCascade(deleteDialog.item.id)
 
       if (!result.success) {
-        toast.error(result.error || 'Error al eliminar la categoria')
+        toast.error(result.error || t('toasts.deleteError', { entity: t('pages.categories.title').toLowerCase() }))
         deleteDialog.close()
         return
       }
@@ -199,11 +201,11 @@ export function CategoriesPage() {
       // Then delete from backend
       await deleteCategoryAsync(deleteDialog.item.id)
 
-      toast.success('Categoria eliminada correctamente')
+      toast.success(t('toasts.deleteSuccessFem', { entity: t('pages.categories.title') }))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'CategoriesPage.handleDelete')
-      toast.error(`Error al eliminar la categoria: ${message}`)
+      toast.error(t('toasts.deleteError', { entity: t('pages.categories.title').toLowerCase() }) + `: ${message}`)
     }
   }, [deleteDialog, deleteCategoryAsync])
 
@@ -222,7 +224,7 @@ export function CategoriesPage() {
       },
       {
         key: 'image',
-        label: 'Imagen',
+        label: t('common.image'),
         width: 'w-20',
         render: (item) =>
           item.image ? (
@@ -234,7 +236,7 @@ export function CategoriesPage() {
           ) : (
             <div
               className="w-12 h-12 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center text-[var(--text-muted)]"
-              aria-label="Sin imagen"
+              aria-label={t('common.noImage')}
             >
               -
             </div>
@@ -242,42 +244,42 @@ export function CategoriesPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item) => <span className="font-medium">{item.name}</span>,
       },
       {
         key: 'orderDisplay',
-        label: 'Orden',
+        label: t('common.order'),
         width: 'w-20',
         render: (item) => item.order,
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         width: 'w-24',
         render: (item) =>
           item.is_active !== false ? (
             <Badge variant="success">
-              <span className="sr-only">Estado:</span> Activa
+              <span className="sr-only">{t('common.status')}:</span> {t('common.active')}
             </Badge>
           ) : (
             <Badge variant="danger">
-              <span className="sr-only">Estado:</span> Inactiva
+              <span className="sr-only">{t('common.status')}:</span> {t('common.inactive')}
             </Badge>
           ),
       },
       {
         key: 'subcategories',
-        label: 'Subcategorias',
+        label: t('pages.subcategories.title'),
         width: 'w-32',
         render: (item) => {
           const count = getByCategory(item.id).length
-          return <span className="text-[var(--text-muted)]">{count} subcategorias</span>
+          return <span className="text-[var(--text-muted)]">{count} {t('pages.categories.subcategoriesCount')}</span>
         },
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('common.actions'),
         width: 'w-28',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -319,15 +321,15 @@ export function CategoriesPage() {
   if (!selectedBranchId) {
     return (
       <PageContainer
-        title="Categorias"
-        description="Selecciona una sucursal para ver sus categorias"
+        title={t('pages.categories.title')}
+        description={t('pages.categories.selectBranch')}
         helpContent={helpContent.categories}
       >
         <Card className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
-            Selecciona una sucursal desde el Dashboard para ver sus categorias
+            {t('pages.categories.selectBranchFromDashboard')}
           </p>
-          <Button onClick={() => navigate('/')}>Ir al Dashboard</Button>
+          <Button onClick={() => navigate('/')}>{t('common.goToDashboard')}</Button>
         </Card>
       </PageContainer>
     )
@@ -340,13 +342,13 @@ export function CategoriesPage() {
       <meta name="description" content={`Administración de categorías de ${selectedBranch?.name || 'la sucursal'}`} />
 
       <PageContainer
-        title={`Categorias - ${selectedBranch?.name || ''}`}
-        description={`Administra las categorias de ${selectedBranch?.name || 'la sucursal'}`}
+        title={`${t('pages.categories.title')} - ${selectedBranch?.name || ''}`}
+        description={`${t('pages.categories.description')} ${selectedBranch?.name || ''}`}
         helpContent={helpContent.categories}
         actions={
           canCreate ? (
             <Button onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-              Nueva Categoria
+              {t('pages.categories.newCategory')}
             </Button>
           ) : undefined
         }
@@ -359,7 +361,7 @@ export function CategoriesPage() {
             <Table
               data={paginatedCategories}
               columns={columns}
-              emptyMessage="No hay categorias. Crea una para comenzar."
+              emptyMessage={t('pages.categories.noCategories')}
               ariaLabel={`Categorias de ${selectedBranch?.name || 'sucursal'}`}
             />
           )}
@@ -376,15 +378,15 @@ export function CategoriesPage() {
         <Modal
           isOpen={modal.isOpen}
           onClose={modal.close}
-          title={modal.selectedItem ? 'Editar Categoria' : 'Nueva Categoria'}
+          title={modal.selectedItem ? t('pages.categories.editCategory') : t('pages.categories.newCategory')}
           size="md"
           footer={
             <>
               <Button variant="ghost" onClick={modal.close}>
-                Cancelar
+                {t('common.cancel')}
               </Button>
               <Button type="submit" form="category-form" isLoading={isPending}>
-                {modal.selectedItem ? 'Guardar' : 'Crear'}
+                {modal.selectedItem ? t('common.save') : t('common.create')}
               </Button>
             </>
           }
@@ -392,7 +394,7 @@ export function CategoriesPage() {
           <form id="category-form" action={formAction} className="space-y-4">
             <div className="flex items-center gap-2 mb-2">
               <HelpButton
-                title="Formulario de Categoria"
+                title={t('pages.categories.formTitle')}
                 size="sm"
                 content={
                   <div className="space-y-3">
@@ -425,35 +427,35 @@ export function CategoriesPage() {
                   </div>
                 }
               />
-              <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+              <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
             </div>
 
             <input type="hidden" name="branch_id" value={modal.formData.branch_id} />
 
             <Input
-              label="Nombre"
+              label={t('common.name')}
               name="name"
               value={modal.formData.name}
               onChange={(e) =>
                 modal.setFormData((prev) => ({ ...prev, name: e.target.value }))
               }
-              placeholder="Ej: Comidas, Bebidas, Postres"
+              placeholder={t('pages.categories.namePlaceholder')}
               error={state.errors?.name}
             />
 
             <Input
-              label="Icono (emoji o codigo)"
+              label={t('pages.categories.iconLabel')}
               name="icon"
               value={modal.formData.icon}
               onChange={(e) =>
                 modal.setFormData((prev) => ({ ...prev, icon: e.target.value }))
               }
-              placeholder="Ej: 🍔 o utensils"
+              placeholder={t('pages.categories.iconPlaceholder')}
             />
 
             <input type="hidden" name="image" value={modal.formData.image} />
             <ImageUpload
-              label="Imagen"
+              label={t('common.image')}
               value={modal.formData.image}
               onChange={(url) =>
                 modal.setFormData((prev) => ({ ...prev, image: url }))
@@ -461,7 +463,7 @@ export function CategoriesPage() {
             />
 
             <Input
-              label="Orden"
+              label={t('common.order')}
               name="order"
               type="number"
               value={modal.formData.order}
@@ -472,7 +474,7 @@ export function CategoriesPage() {
             />
 
             <Toggle
-              label="Categoria activa"
+              label={t('pages.categories.activeToggle')}
               name="is_active"
               checked={modal.formData.is_active}
               onChange={(e) =>
@@ -488,9 +490,9 @@ export function CategoriesPage() {
           isOpen={deleteDialog.isOpen}
           onClose={deleteDialog.close}
           onConfirm={handleDelete}
-          title="Eliminar Categoria"
-          message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-          confirmLabel="Eliminar"
+          title={t('pages.categories.deleteCategory')}
+          message={`${t('modals.confirmDelete')} "${deleteDialog.item?.name}"?`}
+          confirmLabel={t('common.delete')}
         >
           {deleteDialog.item && (() => {
             const preview = getCategoryPreview(deleteDialog.item.id)

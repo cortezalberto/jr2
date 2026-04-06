@@ -27,6 +27,16 @@ from shared.utils.admin_schemas import (
 )
 
 
+from pydantic import BaseModel as PydanticBaseModel
+
+
+class QRUrlResponse(PydanticBaseModel):
+    """Response with QR code URL for a table."""
+    url: str
+    table_code: str
+    branch_slug: str
+
+
 router = APIRouter(tags=["admin-tables"])
 
 
@@ -286,6 +296,56 @@ def delete_table(
         branch_id=branch_id,
         actor_user_id=get_user_id(user),
         background_tasks=background_tasks,
+    )
+
+
+@router.get("/tables/{table_id}/qr-url", response_model=QRUrlResponse)
+def get_table_qr_url(
+    table_id: int,
+    db: Session = Depends(get_db),
+    user: dict = Depends(current_user),
+) -> QRUrlResponse:
+    """Get the QR code URL for a table.
+
+    Returns a URL that encodes the pwaMenu join path with branch slug and table code.
+    The frontend can render this URL as a QR code.
+    """
+    from shared.config.settings import settings
+
+    table = db.scalar(
+        select(Table).where(
+            Table.id == table_id,
+            Table.tenant_id == user["tenant_id"],
+            Table.is_active.is_(True),
+        )
+    )
+    if not table:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Table not found",
+        )
+
+    # MANAGER branch isolation
+    if not is_admin(user):
+        validate_branch_access(user, table.branch_id)
+
+    branch = db.scalar(
+        select(Branch).where(Branch.id == table.branch_id)
+    )
+    if not branch:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Branch not found",
+        )
+
+    # Build pwaMenu URL: {base_url}/join/{branch_slug}/{table_code}
+    base_url = settings.base_url.rstrip("/")
+    qr_url = f"{base_url}/join/{branch.slug}/{table.code}"
+
+    return QRUrlResponse(
+        url=qr_url,
+        table_code=table.code,
+        branch_slug=branch.slug,
     )
 
 

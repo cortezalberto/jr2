@@ -18,7 +18,9 @@ from rest_api.routers._common import get_user_id, get_user_email
 from rest_api.routers.admin._base import require_admin_or_manager
 from rest_api.services.domain import StaffService
 from shared.config.constants import Roles
+from shared.config.logging import get_logger
 
+logger = get_logger("admin-staff")
 
 router = APIRouter(tags=["admin-staff"])
 
@@ -194,9 +196,9 @@ async def update_staff(
                         "tenant_id": user["tenant_id"],
                     },
                 )
-            except Exception:
+            except Exception as e:
                 # Don't fail update if audit log fails
-                pass
+                logger.warning("Audit log failed for staff role change", staff_id=staff_id, error=str(e))
 
         background_tasks.add_task(_log_role_change)
 

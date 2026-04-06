@@ -37,6 +37,7 @@ class User(AuditMixin, Base):
     phone: Mapped[Optional[str]] = mapped_column(Text)  # D004: Staff phone number
     dni: Mapped[Optional[str]] = mapped_column(Text)  # D004: National ID document
     hire_date: Mapped[Optional[str]] = mapped_column(Text)  # D004: Date hired (YYYY-MM-DD)
+    totp_secret: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 2FA TOTP secret (encrypted)
 
     # DB-CRIT-01 FIX: Unique constraint per tenant, not global
     __table_args__ = (

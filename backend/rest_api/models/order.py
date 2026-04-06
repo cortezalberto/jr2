@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import AuditMixin, Base
@@ -121,6 +121,14 @@ class RoundItem(AuditMixin, Base):
     unit_price_cents: Mapped[int] = mapped_column(Integer, nullable=False)
     product_name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Snapshot of product name at order time
     notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Void support: allows voiding individual items from submitted rounds
+    is_voided: Mapped[bool] = mapped_column(Boolean, default=False)
+    void_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    voided_by_user_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("app_user.id"), nullable=True
+    )
+    voided_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # DB-CRIT-05 FIX: CHECK constraint to ensure positive quantity
     __table_args__ = (

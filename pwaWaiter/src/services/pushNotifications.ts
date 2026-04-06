@@ -1,3 +1,5 @@
+import { notificationLogger } from '../utils/logger'
+
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
 
 export async function requestNotificationPermission(): Promise<boolean> {
@@ -11,7 +13,7 @@ export async function requestNotificationPermission(): Promise<boolean> {
 
 export async function subscribeToPush(token: string): Promise<boolean> {
   if (!VAPID_PUBLIC_KEY) {
-    console.warn('VAPID key not configured, push disabled')
+    notificationLogger.warn('VAPID key not configured, push disabled')
     return false
   }
 
@@ -41,7 +43,7 @@ export async function subscribeToPush(token: string): Promise<boolean> {
 
     return true
   } catch (error) {
-    console.error('Push subscription failed:', error)
+    notificationLogger.error('Push subscription failed', error)
     return false
   }
 }

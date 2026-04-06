@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { FileText, Plus, BarChart3, Pencil, Trash2 } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -73,19 +74,7 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
-const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }> = {
-  AUTHORIZED: { label: 'Autorizada', variant: 'success' },
-  DRAFT: { label: 'Borrador', variant: 'warning' },
-  REJECTED: { label: 'Rechazada', variant: 'danger' },
-  VOIDED: { label: 'Anulada', variant: 'default' },
-}
-
-const IVA_CONDITIONS = [
-  { value: 'RESPONSABLE_INSCRIPTO', label: 'Responsable Inscripto' },
-  { value: 'MONOTRIBUTISTA', label: 'Monotributista' },
-  { value: 'EXENTO', label: 'Exento' },
-  { value: 'CONSUMIDOR_FINAL', label: 'Consumidor Final' },
-]
+// STATUS_CONFIG and IVA_CONDITIONS moved to component for i18n
 
 type TabKey = 'invoices' | 'points' | 'credit-notes' | 'iva-report'
 
@@ -94,7 +83,22 @@ type TabKey = 'invoices' | 'points' | 'credit-notes' | 'iva-report'
 // -------------------------------------------------------------------------
 
 export function FiscalPage() {
-  useDocumentTitle('Facturacion')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.fiscal.title'))
+
+  const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'warning' | 'danger' | 'default' }> = {
+    AUTHORIZED: { label: t('pages.fiscal.statusAuthorized'), variant: 'success' },
+    DRAFT: { label: t('pages.fiscal.statusDraft'), variant: 'warning' },
+    REJECTED: { label: t('pages.fiscal.statusRejected'), variant: 'danger' },
+    VOIDED: { label: t('pages.fiscal.statusVoided'), variant: 'default' },
+  }
+
+  const IVA_CONDITIONS = [
+    { value: 'RESPONSABLE_INSCRIPTO', label: t('pages.fiscal.ivaResponsableInscripto') },
+    { value: 'MONOTRIBUTISTA', label: t('pages.fiscal.ivaMonotributista') },
+    { value: 'EXENTO', label: t('pages.fiscal.ivaExento') },
+    { value: 'CONSUMIDOR_FINAL', label: t('pages.fiscal.ivaConsumidorFinal') },
+  ]
 
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
 
@@ -143,7 +147,7 @@ export function FiscalPage() {
   }, [])
 
   const handleCreateInvoice = useCallback(() => {
-    if (!invoiceCheckId) { toast.error('Selecciona un check asociado'); return }
+    if (!invoiceCheckId) { toast.error(t('pages.fiscal.selectCheck')); return }
     const newInvoice: Invoice = {
       id: Date.now(),
       branch_id: parseInt(selectedBranchId || '0', 10),
@@ -163,17 +167,17 @@ export function FiscalPage() {
     setShowInvoiceModal(false)
     setInvoiceCheckId('')
     setInvoiceCustomerDoc('')
-    toast.success('Factura emitida correctamente')
+    toast.success(t('pages.fiscal.invoiceIssued'))
   }, [invoiceType, invoiceCheckId, invoiceCustomerDoc, selectedBranchId, invoices.length])
 
   const handleSavePoint = useCallback(() => {
-    if (!pointCuit.trim() || !pointBusinessName.trim()) { toast.error('CUIT y Razon Social son obligatorios'); return }
+    if (!pointCuit.trim() || !pointBusinessName.trim()) { toast.error(t('pages.fiscal.cuitRequired')); return }
     if (editingPoint) {
       setFiscalPoints((prev) => prev.map((p) => p.id === editingPoint.id ? { ...p, number: parseInt(pointNumber, 10) || 1, type: pointType, cuit: pointCuit, business_name: pointBusinessName, iva_condition: pointIvaCondition } : p))
-      toast.success('Punto de venta actualizado')
+      toast.success(t('pages.fiscal.pointUpdated'))
     } else {
       setFiscalPoints((prev) => [...prev, { id: Date.now(), tenant_id: 1, number: parseInt(pointNumber, 10) || 1, type: pointType, cuit: pointCuit, business_name: pointBusinessName, iva_condition: pointIvaCondition, is_active: true }])
-      toast.success('Punto de venta creado')
+      toast.success(t('pages.fiscal.pointCreated'))
     }
     setShowPointModal(false)
     setEditingPoint(null)
@@ -192,7 +196,7 @@ export function FiscalPage() {
 
   const handleDeletePoint = useCallback((id: number) => {
     setFiscalPoints((prev) => prev.filter((p) => p.id !== id))
-    toast.success('Punto de venta eliminado')
+    toast.success(t('pages.fiscal.pointDeleted'))
   }, [])
 
   const handleGenerateIVAReport = useCallback(() => {
@@ -212,17 +216,17 @@ export function FiscalPage() {
     setIvaReport({ year, month, by_type: arr, total_net_cents: arr.reduce((s, r) => s + r.net_cents, 0), total_iva_cents: arr.reduce((s, r) => s + r.iva_cents, 0), total_cents: arr.reduce((s, r) => s + r.total_cents, 0) })
   }, [reportYear, reportMonth, invoices])
 
-  const invoiceTypeOptions = [{ value: '', label: 'Todos los tipos' }, { value: 'A', label: 'Factura A' }, { value: 'B', label: 'Factura B' }, { value: 'C', label: 'Factura C' }]
-  const statusOptions = [{ value: '', label: 'Todos los estados' }, { value: 'AUTHORIZED', label: 'Autorizada' }, { value: 'DRAFT', label: 'Borrador' }, { value: 'REJECTED', label: 'Rechazada' }, { value: 'VOIDED', label: 'Anulada' }]
+  const invoiceTypeOptions = [{ value: '', label: t('pages.fiscal.allTypes') }, { value: 'A', label: t('pages.fiscal.invoiceA') }, { value: 'B', label: t('pages.fiscal.invoiceB') }, { value: 'C', label: t('pages.fiscal.invoiceC') }]
+  const statusOptions = [{ value: '', label: t('pages.fiscal.allStatuses') }, { value: 'AUTHORIZED', label: t('pages.fiscal.statusAuthorized') }, { value: 'DRAFT', label: t('pages.fiscal.statusDraft') }, { value: 'REJECTED', label: t('pages.fiscal.statusRejected') }, { value: 'VOIDED', label: t('pages.fiscal.statusVoided') }]
   const monthOptions = Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: new Date(2024, i).toLocaleString('es-AR', { month: 'long' }) }))
 
   if (!selectedBranchId) {
     return (
-      <PageContainer title="Facturacion" description="Gestion fiscal y facturacion electronica">
+      <PageContainer title={t('pages.fiscal.title')} description={t('pages.fiscal.selectBranchDesc')}>
         <Card>
           <div className="text-center py-12 text-[var(--text-muted)]">
             <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" aria-hidden="true" />
-            <p className="text-lg">Selecciona una sucursal desde el Dashboard</p>
+            <p className="text-lg">{t('pages.fiscal.selectBranchMessage')}</p>
           </div>
         </Card>
       </PageContainer>
@@ -230,9 +234,9 @@ export function FiscalPage() {
   }
 
   return (
-    <PageContainer title="Facturacion" description="Gestion fiscal AFIP, facturas electronicas y reportes IVA">
+    <PageContainer title={t('pages.fiscal.title')} description={t('pages.fiscal.description')}>
       <div className="flex gap-2 mb-6" role="tablist">
-        {([{ key: 'invoices' as TabKey, label: 'Facturas' }, { key: 'points' as TabKey, label: 'Puntos de Venta' }, { key: 'credit-notes' as TabKey, label: 'Notas de Credito' }, { key: 'iva-report' as TabKey, label: 'Reporte IVA' }]).map((tab) => (
+        {([{ key: 'invoices' as TabKey, label: t('pages.fiscal.tabInvoices') }, { key: 'points' as TabKey, label: t('pages.fiscal.tabPoints') }, { key: 'credit-notes' as TabKey, label: t('pages.fiscal.tabCreditNotes') }, { key: 'iva-report' as TabKey, label: t('pages.fiscal.tabIvaReport') }]).map((tab) => (
           <button key={tab.key} role="tab" aria-selected={activeTab === tab.key} onClick={() => setActiveTab(tab.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-orange-500 text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'}`}>{tab.label}</button>
         ))}
       </div>
@@ -240,25 +244,25 @@ export function FiscalPage() {
       {activeTab === 'invoices' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Facturas</h3>
-            <Button variant="primary" size="sm" onClick={() => setShowInvoiceModal(true)} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>Emitir Factura</Button>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.fiscal.invoices')}</h3>
+            <Button variant="primary" size="sm" onClick={() => setShowInvoiceModal(true)} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>{t('pages.fiscal.issueInvoice')}</Button>
           </div>
           <div className="flex gap-4 mb-4">
-            <div className="w-48"><Select id="filter-type" label="Tipo" options={invoiceTypeOptions} value={filterType} onChange={(e) => setFilterType(e.target.value)} /></div>
-            <div className="w-48"><Select id="filter-status" label="Estado" options={statusOptions} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} /></div>
+            <div className="w-48"><Select id="filter-type" label={t('pages.fiscal.typeCol')} options={invoiceTypeOptions} value={filterType} onChange={(e) => setFilterType(e.target.value)} /></div>
+            <div className="w-48"><Select id="filter-status" label={t('pages.fiscal.invoiceStatus')} options={statusOptions} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} /></div>
           </div>
           {filteredInvoices.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay facturas registradas</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.fiscal.noInvoices')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de facturas">
+              <table className="w-full text-sm" aria-label={t('pages.fiscal.invoiceTableLabel')}>
                 <thead><tr className="border-b border-[var(--border-default)]">
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Numero</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Tipo</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Fecha</th>
-                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Monto</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">CAE</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Estado</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceNumber')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.typeCol')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceDate')}</th>
+                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceAmount')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceCae')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceStatus')}</th>
                 </tr></thead>
                 <tbody>
                   {filteredInvoices.map((inv) => {
@@ -284,21 +288,21 @@ export function FiscalPage() {
       {activeTab === 'points' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Puntos de Venta</h3>
-            <Button variant="primary" size="sm" onClick={() => { setEditingPoint(null); resetPointForm(); setShowPointModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>Agregar Punto</Button>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.fiscal.salesPoints')}</h3>
+            <Button variant="primary" size="sm" onClick={() => { setEditingPoint(null); resetPointForm(); setShowPointModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>{t('pages.fiscal.addPoint')}</Button>
           </div>
           {fiscalPoints.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay puntos de venta configurados</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.fiscal.noPoints')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de puntos de venta">
+              <table className="w-full text-sm" aria-label={t('pages.fiscal.pointsTableLabel')}>
                 <thead><tr className="border-b border-[var(--border-default)]">
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Numero</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Tipo</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">CUIT</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Razon Social</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Condicion IVA</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Acciones</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceNumber')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.typeCol')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.pointCuit')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.pointBusinessName')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.pointIvaCondition')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.actionsCol')}</th>
                 </tr></thead>
                 <tbody>
                   {fiscalPoints.map((pt) => (
@@ -325,19 +329,19 @@ export function FiscalPage() {
 
       {activeTab === 'credit-notes' && (
         <Card className="p-6">
-          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Notas de Credito</h3>
+          <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{t('pages.fiscal.creditNotes')}</h3>
           {creditNotes.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay notas de credito emitidas</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.fiscal.noCreditNotes')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de notas de credito">
+              <table className="w-full text-sm" aria-label={t('pages.fiscal.creditNotesTableLabel')}>
                 <thead><tr className="border-b border-[var(--border-default)]">
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Numero</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Factura Original</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Fecha</th>
-                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Monto</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Motivo</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Estado</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceNumber')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.originalInvoice')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceDate')}</th>
+                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceAmount')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.creditNoteReason')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.invoiceStatus')}</th>
                 </tr></thead>
                 <tbody>
                   {creditNotes.map((cn) => (
@@ -366,35 +370,35 @@ export function FiscalPage() {
             </h3>
             <div className="flex gap-4 items-end">
               <div className="w-32">
-                <label htmlFor="iva-year" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Anio</label>
+                <label htmlFor="iva-year" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.fiscal.year')}</label>
                 <input id="iva-year" type="number" min="2020" max="2030" value={reportYear} onChange={(e) => setReportYear(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <div className="w-48"><Select id="iva-month" label="Mes" options={monthOptions} value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} /></div>
-              <Button variant="primary" size="sm" onClick={handleGenerateIVAReport}>Generar Reporte</Button>
+              <div className="w-48"><Select id="iva-month" label={t('pages.fiscal.month')} options={monthOptions} value={reportMonth} onChange={(e) => setReportMonth(e.target.value)} /></div>
+              <Button variant="primary" size="sm" onClick={handleGenerateIVAReport}>{t('pages.fiscal.generateReport')}</Button>
             </div>
           </Card>
           {ivaReport && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Neto Gravado</p><p className="text-2xl font-bold text-[var(--text-primary)]">{formatCurrency(ivaReport.total_net_cents)}</p></Card>
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">IVA</p><p className="text-2xl font-bold text-blue-400">{formatCurrency(ivaReport.total_iva_cents)}</p></Card>
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Total</p><p className="text-2xl font-bold text-green-400">{formatCurrency(ivaReport.total_cents)}</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.fiscal.netTaxable')}</p><p className="text-2xl font-bold text-[var(--text-primary)]">{formatCurrency(ivaReport.total_net_cents)}</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.fiscal.iva')}</p><p className="text-2xl font-bold text-blue-400">{formatCurrency(ivaReport.total_iva_cents)}</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.fiscal.total')}</p><p className="text-2xl font-bold text-green-400">{formatCurrency(ivaReport.total_cents)}</p></Card>
               </div>
               <Card className="p-6">
-                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">Detalle por Tipo de Factura</h4>
-                {ivaReport.by_type.length === 0 ? <p className="text-[var(--text-muted)] text-sm">Sin facturas en el periodo</p> : (
+                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">{t('pages.fiscal.detailByInvoiceType')}</h4>
+                {ivaReport.by_type.length === 0 ? <p className="text-[var(--text-muted)] text-sm">{t('pages.fiscal.noInvoicesInPeriod')}</p> : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead><tr className="border-b border-[var(--border-default)]">
-                        <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Tipo</th>
-                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Cantidad</th>
-                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Neto</th>
-                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">IVA</th>
-                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Total</th>
+                        <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.typeCol')}</th>
+                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.quantityCol')}</th>
+                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.netCol')}</th>
+                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.iva')}</th>
+                        <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.fiscal.total')}</th>
                       </tr></thead>
                       <tbody>{ivaReport.by_type.map((r) => (
                         <tr key={r.type} className="border-b border-[var(--border-default)]">
-                          <td className="py-2 px-3 text-[var(--text-primary)]">Factura {r.type}</td>
+                          <td className="py-2 px-3 text-[var(--text-primary)]">{t('pages.fiscal.typeCol')} {r.type}</td>
                           <td className="py-2 px-3 text-right text-[var(--text-secondary)]">{r.count}</td>
                           <td className="py-2 px-3 text-right text-[var(--text-primary)]">{formatCurrency(r.net_cents)}</td>
                           <td className="py-2 px-3 text-right text-blue-400">{formatCurrency(r.iva_cents)}</td>
@@ -415,21 +419,21 @@ export function FiscalPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowInvoiceModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Emitir Factura</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{t('pages.fiscal.issueInvoice')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="inv-check" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">ID del Check</label>
+                <label htmlFor="inv-check" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.fiscal.checkId')}</label>
                 <input id="inv-check" type="number" value={invoiceCheckId} onChange={(e) => setInvoiceCheckId(e.target.value)} placeholder="Ej: 42" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Select id="inv-type" label="Tipo de Factura" options={[{ value: 'A', label: 'Factura A' }, { value: 'B', label: 'Factura B' }, { value: 'C', label: 'Factura C' }]} value={invoiceType} onChange={(e) => setInvoiceType(e.target.value)} />
+              <Select id="inv-type" label={t('pages.fiscal.invoiceTypeLabel')} options={[{ value: 'A', label: t('pages.fiscal.invoiceA') }, { value: 'B', label: t('pages.fiscal.invoiceB') }, { value: 'C', label: t('pages.fiscal.invoiceC') }]} value={invoiceType} onChange={(e) => setInvoiceType(e.target.value)} />
               <div>
-                <label htmlFor="inv-doc" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Documento del Cliente (opcional)</label>
+                <label htmlFor="inv-doc" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.fiscal.customerDocument')}</label>
                 <input id="inv-doc" type="text" value={invoiceCustomerDoc} onChange={(e) => setInvoiceCustomerDoc(e.target.value)} placeholder="CUIT/CUIL/DNI" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowInvoiceModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleCreateInvoice}>Emitir</Button>
+              <Button variant="secondary" onClick={() => setShowInvoiceModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleCreateInvoice}>{t('pages.fiscal.issue')}</Button>
             </div>
           </div>
         </div>
@@ -440,26 +444,26 @@ export function FiscalPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowPointModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingPoint ? 'Editar Punto de Venta' : 'Nuevo Punto de Venta'}</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingPoint ? t('pages.fiscal.editPoint') : t('pages.fiscal.newPoint')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="pt-num" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Numero</label>
+                <label htmlFor="pt-num" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.fiscal.invoiceNumber')}</label>
                 <input id="pt-num" type="number" min="1" value={pointNumber} onChange={(e) => setPointNumber(e.target.value)} placeholder="Ej: 1" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Select id="pt-type" label="Tipo" options={[{ value: 'ELECTRONIC', label: 'Electronico' }, { value: 'FISCAL_PRINTER', label: 'Controlador Fiscal' }]} value={pointType} onChange={(e) => setPointType(e.target.value)} />
+              <Select id="pt-type" label={t('pages.fiscal.typeCol')} options={[{ value: 'ELECTRONIC', label: t('pages.fiscal.typeElectronic') }, { value: 'FISCAL_PRINTER', label: t('pages.fiscal.typeFiscalPrinter') }]} value={pointType} onChange={(e) => setPointType(e.target.value)} />
               <div>
-                <label htmlFor="pt-cuit" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">CUIT</label>
+                <label htmlFor="pt-cuit" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.fiscal.pointCuit')}</label>
                 <input id="pt-cuit" type="text" value={pointCuit} onChange={(e) => setPointCuit(e.target.value)} placeholder="Ej: 20-12345678-9" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="pt-biz" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Razon Social</label>
+                <label htmlFor="pt-biz" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.fiscal.pointBusinessName')}</label>
                 <input id="pt-biz" type="text" value={pointBusinessName} onChange={(e) => setPointBusinessName(e.target.value)} placeholder="Nombre del negocio" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
-              <Select id="pt-iva" label="Condicion IVA" options={IVA_CONDITIONS} value={pointIvaCondition} onChange={(e) => setPointIvaCondition(e.target.value)} />
+              <Select id="pt-iva" label={t('pages.fiscal.pointIvaCondition')} options={IVA_CONDITIONS} value={pointIvaCondition} onChange={(e) => setPointIvaCondition(e.target.value)} />
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowPointModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleSavePoint}>{editingPoint ? 'Guardar' : 'Crear'}</Button>
+              <Button variant="secondary" onClick={() => setShowPointModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleSavePoint}>{editingPoint ? t('common.save') : t('common.create')}</Button>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Filter, Save, DollarSign, Percent } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout'
@@ -38,8 +39,9 @@ interface PriceEdit {
 }
 
 export function PricesPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Precios')
+  useDocumentTitle(t('pages.prices.title'))
 
   const navigate = useNavigate()
 
@@ -166,7 +168,7 @@ export function PricesPage() {
 
     // Validate base price
     if (priceEdits.price <= 0) {
-      toast.error('El precio base debe ser mayor a 0')
+      toast.error(t('pages.prices.priceGreaterThanZero'))
       return
     }
 
@@ -288,16 +290,16 @@ export function PricesPage() {
   const handleBulkUpdate = useCallback(() => {
     // Validate bulkValue is a valid number
     if (isNaN(bulkValue)) {
-      toast.error('Ingresa un valor válido')
+      toast.error(t('pages.prices.enterValidValue'))
       return
     }
     // For fixed price, value must be positive; for percent, 0 is invalid
     if (bulkType === 'fixed' && bulkValue <= 0) {
-      toast.error('El precio fijo debe ser mayor a 0')
+      toast.error(t('pages.prices.priceGreaterThanZero'))
       return
     }
     if (bulkType === 'percent' && bulkValue === 0) {
-      toast.error('Ingresa un porcentaje diferente de 0')
+      toast.error(t('pages.prices.enterNonZeroPercentage'))
       return
     }
 
@@ -320,7 +322,7 @@ export function PricesPage() {
       }
     })
 
-    toast.success(`${updatedCount} productos actualizados`)
+    toast.success(`${updatedCount} ${t('pages.prices.productsUpdated')}`)
     setIsBulkModalOpen(false)
     setBulkValue(0)
   }, [bulkType, bulkValue, filteredProducts, updateProduct])
@@ -328,7 +330,7 @@ export function PricesPage() {
   const columns: TableColumn<Product>[] = [
     {
       key: 'name',
-      label: 'Producto',
+      label: t('pages.products.title'),
       render: (item) => (
         <div>
           <span className="font-medium">{item.name}</span>
@@ -361,7 +363,7 @@ export function PricesPage() {
               </div>
             }
           />
-          <span>Precio Base</span>
+          <span>{t('pages.prices.basePrice')}</span>
         </div>
       ),
       width: 'w-40',
@@ -371,12 +373,12 @@ export function PricesPage() {
     },
     {
       key: 'branch_prices',
-      label: 'Precio Sucursales',
+      label: t('pages.products.branchPrices'),
       width: 'w-48',
       render: (item) => {
         const display = getPriceDisplay(item)
         if (!item.use_branch_prices) {
-          return <span className="text-[var(--text-muted)]">Precio unico</span>
+          return <span className="text-[var(--text-muted)]">{t('pages.prices.fixedPrice')}</span>
         }
         return (
           <div>
@@ -390,7 +392,7 @@ export function PricesPage() {
     },
     {
       key: 'mode',
-      label: 'Modo',
+      label: t('common.type'),
       width: 'w-32',
       render: (item) =>
         item.use_branch_prices ? (
@@ -401,7 +403,7 @@ export function PricesPage() {
     },
     {
       key: 'actions',
-      label: 'Acciones',
+      label: t('common.actions'),
       width: 'w-28',
       render: (item) => (
         <Button
@@ -414,7 +416,7 @@ export function PricesPage() {
           aria-label={`Editar precio de ${item.name}`}
         >
           <DollarSign className="w-4 h-4 mr-1" aria-hidden="true" />
-          Editar
+          {t('common.edit')}
         </Button>
       ),
     },
@@ -424,15 +426,15 @@ export function PricesPage() {
   if (!selectedBranchId) {
     return (
       <PageContainer
-        title="Precios"
-        description="Selecciona una sucursal para gestionar precios"
+        title={t('pages.prices.title')}
+        description={t('pages.prices.description')}
         helpContent={helpContent.prices}
       >
         <Card className="text-center py-12">
           <p className="text-[var(--text-muted)] mb-4">
-            Selecciona una sucursal desde el Dashboard para gestionar precios
+            {t('pages.prices.description')}
           </p>
-          <Button onClick={() => navigate('/')}>Ir al Dashboard</Button>
+          <Button onClick={() => navigate('/')}>{t('common.goToDashboard')}</Button>
         </Card>
       </PageContainer>
     )
@@ -440,8 +442,8 @@ export function PricesPage() {
 
   return (
     <PageContainer
-      title={`Precios - ${selectedBranch?.name || ''}`}
-      description={`Gestion de precios de ${selectedBranch?.name || 'la sucursal'}`}
+      title={`${t('pages.prices.title')} - ${selectedBranch?.name || ''}`}
+      description={`${t('pages.prices.description')} - ${selectedBranch?.name || ''}`}
       helpContent={helpContent.prices}
       actions={
         <Button
@@ -449,7 +451,7 @@ export function PricesPage() {
           leftIcon={<Percent className="w-4 h-4" />}
           variant="secondary"
         >
-          Actualizar Masivo
+          {t('pages.prices.bulkUpdate')}
         </Button>
       }
     >
@@ -488,7 +490,7 @@ export function PricesPage() {
                 setFilterSubcategory('')
               }}
             >
-              Limpiar filtros
+              {t('pages.subcategories.clearFilter')}
             </Button>
           )}
           <div className="ml-auto text-sm text-[var(--text-muted)]">
@@ -502,7 +504,7 @@ export function PricesPage() {
           data={paginatedProducts}
           columns={columns}
           onRowClick={openEditModal}
-          emptyMessage="No hay productos. Crea productos primero."
+          emptyMessage={t('pages.products.noProducts')}
           ariaLabel="Lista de precios de productos"
         />
         <Pagination
@@ -518,19 +520,19 @@ export function PricesPage() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={`Editar Precio - ${editingProduct?.name || ''}`}
+        title={`${t('pages.prices.editPrice')} - ${editingProduct?.name || ''}`}
         size="md"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsModalOpen(false)}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleSavePrice}
               isLoading={isSaving}
               leftIcon={<Save className="w-4 h-4" />}
             >
-              Guardar
+              {t('common.save')}
             </Button>
           </>
         }
@@ -539,7 +541,7 @@ export function PricesPage() {
           <div className="space-y-4">
             {/* Base price */}
             <Input
-              label="Precio Base"
+              label={t('pages.prices.basePrice')}
               type="number"
               value={priceEdits.price}
               onChange={(e) => {
@@ -583,7 +585,7 @@ export function PricesPage() {
                 <div className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5" />
               </div>
               <span className="text-sm text-[var(--text-secondary)]">
-                Precios diferentes por sucursal
+                {t('pages.products.useBranchPrices')}
               </span>
             </label>
 
@@ -597,7 +599,7 @@ export function PricesPage() {
                   onClick={applyDefaultToAll}
                   className="text-[var(--primary-500)] hover:text-[var(--primary-400)]"
                 >
-                  Aplicar precio base a todas
+                  {t('pages.prices.applyToAll')}
                 </Button>
 
                 <div className="space-y-2">
@@ -663,12 +665,12 @@ export function PricesPage() {
       <Modal
         isOpen={isBulkModalOpen}
         onClose={() => setIsBulkModalOpen(false)}
-        title="Actualizar Precios Masivamente"
+        title={t('pages.prices.bulkUpdate')}
         size="sm"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsBulkModalOpen(false)}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleBulkUpdate}>
               Aplicar a {filteredProducts.length} productos

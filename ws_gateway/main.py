@@ -388,6 +388,69 @@ async def get_catchup_events(
     return {"events": events, "count": len(events)}
 
 
+# Diner-relevant event types for session catch-up filtering
+_DINER_CATCHUP_EVENT_TYPES = {
+    "ROUND_PENDING",
+    "ROUND_CONFIRMED",
+    "ROUND_SUBMITTED",
+    "ROUND_IN_KITCHEN",
+    "ROUND_READY",
+    "ROUND_SERVED",
+    "ROUND_CANCELED",
+    "CART_ITEM_ADDED",
+    "CART_ITEM_UPDATED",
+    "CART_ITEM_REMOVED",
+    "CART_CLEARED",
+    "CHECK_REQUESTED",
+    "CHECK_PAID",
+    "PAYMENT_APPROVED",
+    "PAYMENT_REJECTED",
+    "TABLE_STATUS_CHANGED",
+    "PRODUCT_AVAILABILITY_CHANGED",
+}
+
+
+@app.get("/ws/catchup/session")
+async def get_session_catchup_events(
+    session_id: int = Query(..., description="Table session ID"),
+    since: float = Query(..., description="Unix timestamp; events after this are returned"),
+    table_token: str = Query(..., description="Table token for authentication"),
+):
+    """
+    Return missed events since timestamp for diner reconnection catch-up.
+
+    Uses table token authentication (not JWT) for pwaMenu diners.
+    Filters events to only include diner-relevant types.
+    """
+    from fastapi import HTTPException as WSHTTPException
+    from shared.security.auth import verify_table_token
+    from shared.infrastructure.events import get_redis_pool, get_missed_events
+
+    # Verify table token
+    try:
+        claims = verify_table_token(table_token)
+    except Exception:
+        raise WSHTTPException(status_code=401, detail="Invalid table token")
+
+    # Verify session_id matches the token
+    if claims.get("session_id") != session_id:
+        raise WSHTTPException(status_code=403, detail="Session ID does not match token")
+
+    # Extract branch_id from verified token claims
+    branch_id = claims["branch_id"]
+
+    redis = await get_redis_pool()
+    events = await get_missed_events(redis, branch_id, since)
+
+    # Filter to diner-relevant events only
+    filtered_events = [
+        e for e in events
+        if e.get("type") in _DINER_CATCHUP_EVENT_TYPES
+    ]
+
+    return {"events": filtered_events, "count": len(filtered_events)}
+
+
 # =============================================================================
 # WebSocket Endpoints
 # =============================================================================

@@ -64,6 +64,9 @@ class MercadoPagoGateway(PaymentGateway):
                 payment_id=str(data["id"]),
                 external_id=str(data.get("preference_id", "")),
                 status=data["status"],
+                amount_cents=int(data.get("transaction_amount", 0) * 100),
+                external_reference=data.get("external_reference", ""),
+                status_detail=data.get("status_detail", ""),
             )
 
         return PaymentResult(success=False, error_message=f"MP API error: {response.status_code}")

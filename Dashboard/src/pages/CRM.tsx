@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
-import { Users, Plus, Search, BarChart3, Pencil, Trash2, Eye } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import { Users, Plus, Search, BarChart3, Pencil, Trash2, Eye, Download, ShieldOff } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout/PageContainer'
 import { Card } from '../components/ui/Card'
@@ -70,12 +71,7 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
-const TIER_CONFIG: Record<string, { label: string; variant: 'default' | 'warning' | 'success' | 'danger'; color: string }> = {
-  BRONZE: { label: 'Bronce', variant: 'warning', color: 'text-amber-700' },
-  SILVER: { label: 'Plata', variant: 'default', color: 'text-gray-400' },
-  GOLD: { label: 'Oro', variant: 'success', color: 'text-yellow-400' },
-  PLATINUM: { label: 'Platino', variant: 'danger', color: 'text-purple-400' },
-}
+// TIER_CONFIG moved to component for i18n
 
 type TabKey = 'customers' | 'top' | 'loyalty' | 'reports'
 
@@ -84,7 +80,15 @@ type TabKey = 'customers' | 'top' | 'loyalty' | 'reports'
 // -------------------------------------------------------------------------
 
 export function CRMPage() {
-  useDocumentTitle('CRM')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.crm.title'))
+
+  const TIER_CONFIG: Record<string, { label: string; variant: 'default' | 'warning' | 'success' | 'danger'; color: string }> = {
+    BRONZE: { label: t('pages.crm.tierBronze'), variant: 'warning', color: 'text-amber-700' },
+    SILVER: { label: t('pages.crm.tierSilver'), variant: 'default', color: 'text-gray-400' },
+    GOLD: { label: t('pages.crm.tierGold'), variant: 'success', color: 'text-yellow-400' },
+    PLATINUM: { label: t('pages.crm.tierPlatinum'), variant: 'danger', color: 'text-purple-400' },
+  }
 
   const [activeTab, setActiveTab] = useState<TabKey>('customers')
   const [customers, setCustomers] = useState<Customer[]>([])
@@ -128,13 +132,13 @@ export function CRMPage() {
   }, [customers, topSortBy])
 
   const handleSaveCustomer = useCallback(() => {
-    if (!custName.trim()) { toast.error('El nombre es obligatorio'); return }
+    if (!custName.trim()) { toast.error(t('pages.crm.nameRequired')); return }
     if (editingCustomer) {
       setCustomers((prev) => prev.map((c) => c.id === editingCustomer.id ? { ...c, name: custName, email: custEmail || null, phone: custPhone || null } : c))
-      toast.success('Cliente actualizado')
+      toast.success(t('pages.crm.customerUpdated'))
     } else {
       setCustomers((prev) => [...prev, { id: Date.now(), name: custName, email: custEmail || null, phone: custPhone || null, tier: 'BRONZE' as const, points: 0, total_visits: 0, total_spent_cents: 0, last_visit: null, created_at: new Date().toISOString(), is_active: true }])
-      toast.success('Cliente creado correctamente')
+      toast.success(t('pages.crm.customerCreated'))
     }
     setShowCustomerModal(false)
     setEditingCustomer(null)
@@ -145,7 +149,50 @@ export function CRMPage() {
 
   const handleDeleteCustomer = useCallback((id: number) => {
     setCustomers((prev) => prev.filter((c) => c.id !== id))
-    toast.success('Cliente eliminado')
+    toast.success(t('pages.crm.customerDeleted'))
+  }, [])
+
+  const handleExportCustomerData = useCallback((customer: Customer) => {
+    // Build a client-side JSON export of the customer data
+    const exportData = {
+      export_metadata: {
+        exported_at: new Date().toISOString(),
+        customer_id: customer.id,
+        format_version: '1.0',
+      },
+      profile: {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        tier: customer.tier,
+        points: customer.points,
+        total_visits: customer.total_visits,
+        total_spent_cents: customer.total_spent_cents,
+        last_visit: customer.last_visit,
+        created_at: customer.created_at,
+      },
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `customer_${customer.id}_export.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(t('pages.crm.dataExported'))
+  }, [])
+
+  const handleAnonymizeCustomer = useCallback((id: number) => {
+    if (!window.confirm(t('pages.crm.anonymizeConfirm'))) return
+    setCustomers((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? { ...c, name: 'Cliente Anonimo', email: 'anonimo@redacted.com', phone: '0000000000' }
+          : c
+      )
+    )
+    toast.success(t('pages.crm.dataAnonymized'))
   }, [])
 
   const openCustomerDetail = useCallback((customer: Customer) => {
@@ -162,13 +209,13 @@ export function CRMPage() {
   }, [])
 
   const handleSaveRule = useCallback(() => {
-    if (!ruleName.trim()) { toast.error('El nombre es obligatorio'); return }
+    if (!ruleName.trim()) { toast.error(t('pages.crm.nameRequired')); return }
     if (editingRule) {
       setLoyaltyRules((prev) => prev.map((r) => r.id === editingRule.id ? { ...r, name: ruleName, description: ruleDescription, points_per_unit: parseInt(rulePoints, 10) || 1, min_amount_cents: Math.round(parseFloat(ruleMinAmount || '0') * 100) } : r))
-      toast.success('Regla actualizada')
+      toast.success(t('pages.crm.ruleUpdated'))
     } else {
       setLoyaltyRules((prev) => [...prev, { id: Date.now(), name: ruleName, description: ruleDescription, points_per_unit: parseInt(rulePoints, 10) || 1, min_amount_cents: Math.round(parseFloat(ruleMinAmount || '0') * 100), is_active: true }])
-      toast.success('Regla creada correctamente')
+      toast.success(t('pages.crm.ruleCreated'))
     }
     setShowRuleModal(false)
     setEditingRule(null)
@@ -180,7 +227,7 @@ export function CRMPage() {
 
   const handleDeleteRule = useCallback((id: number) => {
     setLoyaltyRules((prev) => prev.filter((r) => r.id !== id))
-    toast.success('Regla eliminada')
+    toast.success(t('pages.crm.ruleDeleted'))
   }, [])
 
   const handleGenerateLoyaltyReport = useCallback(() => {
@@ -203,9 +250,9 @@ export function CRMPage() {
   }, [customers])
 
   return (
-    <PageContainer title="CRM" description="Gestion de clientes, programa de lealtad y reportes">
+    <PageContainer title={t('pages.crm.title')} description={t('pages.crm.description')}>
       <div className="flex gap-2 mb-6" role="tablist">
-        {([{ key: 'customers' as TabKey, label: 'Clientes' }, { key: 'top' as TabKey, label: 'Top Clientes' }, { key: 'loyalty' as TabKey, label: 'Programa de Lealtad' }, { key: 'reports' as TabKey, label: 'Reportes' }]).map((tab) => (
+        {([{ key: 'customers' as TabKey, label: t('pages.crm.tabCustomers') }, { key: 'top' as TabKey, label: t('pages.crm.tabTopCustomers') }, { key: 'loyalty' as TabKey, label: t('pages.crm.tabLoyalty') }, { key: 'reports' as TabKey, label: t('pages.crm.tabReports') }]).map((tab) => (
           <button key={tab.key} role="tab" aria-selected={activeTab === tab.key} onClick={() => setActiveTab(tab.key)} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab.key ? 'bg-orange-500 text-white' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]'}`}>{tab.label}</button>
         ))}
       </div>
@@ -214,27 +261,27 @@ export function CRMPage() {
       {activeTab === 'customers' && (
         <Card className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)]">Clientes</h3>
-            <Button variant="primary" size="sm" onClick={() => { setEditingCustomer(null); setCustName(''); setCustEmail(''); setCustPhone(''); setShowCustomerModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>Nuevo Cliente</Button>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.crm.customers')}</h3>
+            <Button variant="primary" size="sm" onClick={() => { setEditingCustomer(null); setCustName(''); setCustEmail(''); setCustPhone(''); setShowCustomerModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>{t('pages.crm.newCustomer')}</Button>
           </div>
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-muted)]" aria-hidden="true" />
-            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Buscar por nombre, email o telefono..." className="w-full pl-10 pr-4 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" aria-label="Buscar clientes" />
+            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder={t('pages.crm.searchPlaceholder')} className="w-full pl-10 pr-4 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" aria-label={t('pages.crm.searchLabel')} />
           </div>
           {filteredCustomers.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{searchQuery ? 'No se encontraron clientes' : 'No hay clientes registrados'}</p>
+            <p className="text-[var(--text-muted)] text-sm py-8 text-center">{searchQuery ? t('pages.crm.noCustomersFound') : t('pages.crm.noCustomers')}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm" aria-label="Tabla de clientes">
+              <table className="w-full text-sm" aria-label={t('pages.crm.customersTableLabel')}>
                 <thead><tr className="border-b border-[var(--border-default)]">
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Nombre</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Email</th>
-                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Telefono</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Tier</th>
-                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Puntos</th>
-                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Visitas</th>
-                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Gasto Total</th>
-                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Acciones</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.nameCol')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.emailCol')}</th>
+                  <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.phoneCol')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.tierCol')}</th>
+                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.pointsCol')}</th>
+                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.visits')}</th>
+                  <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.totalSpentCol')}</th>
+                  <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.actionsCol')}</th>
                 </tr></thead>
                 <tbody>{filteredCustomers.map((c) => {
                   const cfg = TIER_CONFIG[c.tier] || TIER_CONFIG.BRONZE
@@ -251,6 +298,8 @@ export function CRMPage() {
                         <div className="flex justify-center gap-2">
                           <Button variant="secondary" size="sm" onClick={() => openCustomerDetail(c)} aria-label={`Ver ${c.name}`}><Eye className="w-3.5 h-3.5" aria-hidden="true" /></Button>
                           <Button variant="secondary" size="sm" onClick={() => openEditCustomer(c)} aria-label={`Editar ${c.name}`}><Pencil className="w-3.5 h-3.5" aria-hidden="true" /></Button>
+                          <Button variant="secondary" size="sm" onClick={() => handleExportCustomerData(c)} aria-label={t('pages.crm.exportData') + ' ' + c.name}><Download className="w-3.5 h-3.5" aria-hidden="true" /></Button>
+                          <Button variant="outline" size="sm" onClick={() => handleAnonymizeCustomer(c.id)} aria-label={t('pages.crm.anonymize') + ' ' + c.name}><ShieldOff className="w-3.5 h-3.5" aria-hidden="true" /></Button>
                           <Button variant="danger" size="sm" onClick={() => handleDeleteCustomer(c.id)} aria-label={`Eliminar ${c.name}`}><Trash2 className="w-3.5 h-3.5" aria-hidden="true" /></Button>
                         </div>
                       </td>
@@ -268,15 +317,15 @@ export function CRMPage() {
         <div className="space-y-4">
           <Card className="p-4">
             <div className="flex gap-4 items-center">
-              <span className="text-sm text-[var(--text-secondary)]">Ordenar por:</span>
+              <span className="text-sm text-[var(--text-secondary)]">{t('pages.crm.sortBy')}</span>
               <div className="flex gap-2">
-                <Button variant={topSortBy === 'spending' ? 'primary' : 'secondary'} size="sm" onClick={() => setTopSortBy('spending')}>Gasto</Button>
-                <Button variant={topSortBy === 'visits' ? 'primary' : 'secondary'} size="sm" onClick={() => setTopSortBy('visits')}>Visitas</Button>
+                <Button variant={topSortBy === 'spending' ? 'primary' : 'secondary'} size="sm" onClick={() => setTopSortBy('spending')}>{t('pages.crm.spending')}</Button>
+                <Button variant={topSortBy === 'visits' ? 'primary' : 'secondary'} size="sm" onClick={() => setTopSortBy('visits')}>{t('pages.crm.visits')}</Button>
               </div>
             </div>
           </Card>
           {topCustomers.length === 0 ? (
-            <Card className="p-6"><p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay clientes para mostrar</p></Card>
+            <Card className="p-6"><p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.crm.noCustomersToShow')}</p></Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {topCustomers.map((c, i) => {
@@ -293,9 +342,9 @@ export function CRMPage() {
                           <Badge variant={cfg.variant}><span className={cfg.color}>{cfg.label}</span></Badge>
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div><p className="text-[var(--text-muted)]">Gasto Total</p><p className="font-medium text-green-400">{formatCurrency(c.total_spent_cents)}</p></div>
-                          <div><p className="text-[var(--text-muted)]">Visitas</p><p className="font-medium text-[var(--text-primary)]">{c.total_visits}</p></div>
-                          <div><p className="text-[var(--text-muted)]">Puntos</p><p className="font-medium text-[var(--primary-600)]">{c.points}</p></div>
+                          <div><p className="text-[var(--text-muted)]">{t('pages.crm.totalSpentCol')}</p><p className="font-medium text-green-400">{formatCurrency(c.total_spent_cents)}</p></div>
+                          <div><p className="text-[var(--text-muted)]">{t('pages.crm.visits')}</p><p className="font-medium text-[var(--text-primary)]">{c.total_visits}</p></div>
+                          <div><p className="text-[var(--text-muted)]">{t('pages.crm.pointsCol')}</p><p className="font-medium text-[var(--primary-600)]">{c.points}</p></div>
                         </div>
                       </div>
                     </div>
@@ -312,24 +361,24 @@ export function CRMPage() {
         <div className="space-y-6">
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-[var(--text-primary)]">Reglas de Lealtad</h3>
+              <h3 className="text-lg font-semibold text-[var(--text-primary)]">{t('pages.crm.loyaltyRules')}</h3>
               <div className="flex gap-2">
-                <Button variant="secondary" size="sm" onClick={handleGenerateLoyaltyReport}>Ver Estadisticas</Button>
-                <Button variant="primary" size="sm" onClick={() => { setEditingRule(null); setRuleName(''); setRuleDescription(''); setRulePoints('1'); setRuleMinAmount('0'); setShowRuleModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>Nueva Regla</Button>
+                <Button variant="secondary" size="sm" onClick={handleGenerateLoyaltyReport}>{t('pages.crm.viewStats')}</Button>
+                <Button variant="primary" size="sm" onClick={() => { setEditingRule(null); setRuleName(''); setRuleDescription(''); setRulePoints('1'); setRuleMinAmount('0'); setShowRuleModal(true) }} leftIcon={<Plus className="w-4 h-4" aria-hidden="true" />}>{t('pages.crm.newRule')}</Button>
               </div>
             </div>
             {loyaltyRules.length === 0 ? (
-              <p className="text-[var(--text-muted)] text-sm py-8 text-center">No hay reglas configuradas</p>
+              <p className="text-[var(--text-muted)] text-sm py-8 text-center">{t('pages.crm.noRules')}</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm" aria-label="Tabla de reglas de lealtad">
+                <table className="w-full text-sm" aria-label={t('pages.crm.loyaltyTableLabel')}>
                   <thead><tr className="border-b border-[var(--border-default)]">
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Nombre</th>
-                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">Descripcion</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Puntos/Unidad</th>
-                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">Monto Minimo</th>
-                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Estado</th>
-                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">Acciones</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.nameCol')}</th>
+                    <th className="text-left py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.descriptionCol')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.pointsPerUnit')}</th>
+                    <th className="text-right py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.minAmount')}</th>
+                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.statusCol')}</th>
+                    <th className="text-center py-2 px-3 text-[var(--text-tertiary)] font-medium">{t('pages.crm.actionsCol')}</th>
                   </tr></thead>
                   <tbody>{loyaltyRules.map((r) => (
                     <tr key={r.id} className="border-b border-[var(--border-default)] hover:bg-[var(--bg-tertiary)]">
@@ -352,10 +401,10 @@ export function CRMPage() {
           </Card>
           {loyaltyReport && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Miembros Activos</p><p className="text-2xl font-bold text-[var(--text-primary)]">{loyaltyReport.active_members}</p></Card>
-              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Puntos Emitidos</p><p className="text-2xl font-bold text-[var(--primary-600)]">{loyaltyReport.total_points_issued}</p></Card>
-              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Puntos Canjeados</p><p className="text-2xl font-bold text-green-400">{loyaltyReport.total_points_redeemed}</p></Card>
-              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Tasa de Canje</p><p className="text-2xl font-bold text-blue-400">{loyaltyReport.redemption_rate}%</p></Card>
+              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.activeMembers')}</p><p className="text-2xl font-bold text-[var(--text-primary)]">{loyaltyReport.active_members}</p></Card>
+              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.pointsIssued')}</p><p className="text-2xl font-bold text-[var(--primary-600)]">{loyaltyReport.total_points_issued}</p></Card>
+              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.pointsRedeemed')}</p><p className="text-2xl font-bold text-green-400">{loyaltyReport.total_points_redeemed}</p></Card>
+              <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.redemptionRate')}</p><p className="text-2xl font-bold text-blue-400">{loyaltyReport.redemption_rate}%</p></Card>
             </div>
           )}
         </div>
@@ -370,19 +419,19 @@ export function CRMPage() {
                 <BarChart3 className="w-5 h-5 text-[var(--primary-500)]" aria-hidden="true" />
                 Reportes de Clientes
               </h3>
-              <Button variant="primary" size="sm" onClick={handleGenerateCustomerReport}>Generar Reporte</Button>
+              <Button variant="primary" size="sm" onClick={handleGenerateCustomerReport}>{t('pages.crm.generateReport')}</Button>
             </div>
           </Card>
           {customerReport && (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Tasa de Retencion</p><p className="text-2xl font-bold text-[var(--text-primary)]">{customerReport.retention_rate}%</p></Card>
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Visitas Promedio/Mes</p><p className="text-2xl font-bold text-[var(--text-primary)]">{customerReport.avg_visits_per_month}</p></Card>
-                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">Gasto Promedio</p><p className="text-2xl font-bold text-green-400">{formatCurrency(customerReport.avg_spending_cents)}</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.retentionRate')}</p><p className="text-2xl font-bold text-[var(--text-primary)]">{customerReport.retention_rate}%</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.avgVisitsPerMonth')}</p><p className="text-2xl font-bold text-[var(--text-primary)]">{customerReport.avg_visits_per_month}</p></Card>
+                <Card className="p-4"><p className="text-[var(--text-tertiary)] text-sm">{t('pages.crm.avgSpending')}</p><p className="text-2xl font-bold text-green-400">{formatCurrency(customerReport.avg_spending_cents)}</p></Card>
               </div>
               <Card className="p-6">
-                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">Top 5 por Gasto</h4>
-                {customerReport.top_spenders.length === 0 ? <p className="text-[var(--text-muted)] text-sm">Sin datos</p> : (
+                <h4 className="text-md font-semibold text-[var(--text-primary)] mb-3">{t('pages.crm.topBySpending')}</h4>
+                {customerReport.top_spenders.length === 0 ? <p className="text-[var(--text-muted)] text-sm">{t('pages.crm.noData')}</p> : (
                   <div className="space-y-2">
                     {customerReport.top_spenders.map((s, i) => (
                       <div key={s.name} className="flex items-center justify-between p-3 bg-[var(--bg-tertiary)] rounded-lg">
@@ -406,24 +455,24 @@ export function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowCustomerModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingCustomer ? 'Editar Cliente' : 'Nuevo Cliente'}</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingCustomer ? t('pages.crm.editCustomer') : t('pages.crm.newCustomerTitle')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="cust-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Nombre</label>
+                <label htmlFor="cust-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.nameCol')}</label>
                 <input id="cust-name" type="text" value={custName} onChange={(e) => setCustName(e.target.value)} placeholder="Nombre completo" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="cust-email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Email (opcional)</label>
+                <label htmlFor="cust-email" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.emailOptional')}</label>
                 <input id="cust-email" type="email" value={custEmail} onChange={(e) => setCustEmail(e.target.value)} placeholder="email@ejemplo.com" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="cust-phone" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Telefono (opcional)</label>
+                <label htmlFor="cust-phone" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.phoneOptional')}</label>
                 <input id="cust-phone" type="tel" value={custPhone} onChange={(e) => setCustPhone(e.target.value)} placeholder="+54 11 1234-5678" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowCustomerModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleSaveCustomer}>{editingCustomer ? 'Guardar' : 'Crear'}</Button>
+              <Button variant="secondary" onClick={() => setShowCustomerModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleSaveCustomer}>{editingCustomer ? t('common.save') : t('common.create')}</Button>
             </div>
           </div>
         </div>
@@ -436,17 +485,17 @@ export function CRMPage() {
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-lg border border-[var(--border-default)]">
             <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{selectedCustomer.name}</h3>
             <div className="grid grid-cols-2 gap-4 mb-4">
-              <div><p className="text-xs text-[var(--text-muted)]">Email</p><p className="text-sm text-[var(--text-primary)]">{selectedCustomer.email || '-'}</p></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Telefono</p><p className="text-sm text-[var(--text-primary)]">{selectedCustomer.phone || '-'}</p></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Tier</p><Badge variant={TIER_CONFIG[selectedCustomer.tier]?.variant || 'default'}>{TIER_CONFIG[selectedCustomer.tier]?.label || selectedCustomer.tier}</Badge></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Puntos</p><p className="text-sm font-medium text-[var(--primary-600)]">{selectedCustomer.points}</p></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Visitas</p><p className="text-sm text-[var(--text-primary)]">{selectedCustomer.total_visits}</p></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Gasto Total</p><p className="text-sm font-medium text-green-400">{formatCurrency(selectedCustomer.total_spent_cents)}</p></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Ultima Visita</p><p className="text-sm text-[var(--text-secondary)]">{formatDate(selectedCustomer.last_visit)}</p></div>
-              <div><p className="text-xs text-[var(--text-muted)]">Cliente Desde</p><p className="text-sm text-[var(--text-secondary)]">{formatDate(selectedCustomer.created_at)}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.emailCol')}</p><p className="text-sm text-[var(--text-primary)]">{selectedCustomer.email || '-'}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.phoneCol')}</p><p className="text-sm text-[var(--text-primary)]">{selectedCustomer.phone || '-'}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.tierCol')}</p><Badge variant={TIER_CONFIG[selectedCustomer.tier]?.variant || 'default'}>{TIER_CONFIG[selectedCustomer.tier]?.label || selectedCustomer.tier}</Badge></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.pointsCol')}</p><p className="text-sm font-medium text-[var(--primary-600)]">{selectedCustomer.points}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.visits')}</p><p className="text-sm text-[var(--text-primary)]">{selectedCustomer.total_visits}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.totalSpentCol')}</p><p className="text-sm font-medium text-green-400">{formatCurrency(selectedCustomer.total_spent_cents)}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.lastVisit')}</p><p className="text-sm text-[var(--text-secondary)]">{formatDate(selectedCustomer.last_visit)}</p></div>
+              <div><p className="text-xs text-[var(--text-muted)]">{t('pages.crm.customerSince')}</p><p className="text-sm text-[var(--text-secondary)]">{formatDate(selectedCustomer.created_at)}</p></div>
             </div>
-            <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Historial de Visitas</h4>
-            {customerVisits.length === 0 ? <p className="text-[var(--text-muted)] text-xs">Sin visitas registradas</p> : (
+            <h4 className="text-sm font-semibold text-[var(--text-primary)] mb-2">{t('pages.crm.visitHistory')}</h4>
+            {customerVisits.length === 0 ? <p className="text-[var(--text-muted)] text-xs">{t('pages.crm.noVisits')}</p> : (
               <div className="space-y-2">{customerVisits.map((v) => (
                 <div key={v.id} className="flex justify-between text-xs p-2 bg-[var(--bg-tertiary)] rounded">
                   <span className="text-[var(--text-secondary)]">{formatDate(v.date)}</span>
@@ -455,8 +504,12 @@ export function CRMPage() {
                 </div>
               ))}</div>
             )}
-            <div className="flex justify-end mt-6">
-              <Button variant="secondary" onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+            <div className="flex justify-between mt-6">
+              <div className="flex gap-2">
+                <Button variant="secondary" size="sm" onClick={() => handleExportCustomerData(selectedCustomer)} leftIcon={<Download className="w-3.5 h-3.5" aria-hidden="true" />}>{t('pages.crm.exportData')}</Button>
+                <Button variant="outline" size="sm" onClick={() => { handleAnonymizeCustomer(selectedCustomer.id); setShowDetailModal(false) }} leftIcon={<ShieldOff className="w-3.5 h-3.5" aria-hidden="true" />}>{t('pages.crm.anonymize')}</Button>
+              </div>
+              <Button variant="secondary" onClick={() => setShowDetailModal(false)}>{t('common.close')}</Button>
             </div>
           </div>
         </div>
@@ -467,30 +520,30 @@ export function CRMPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowRuleModal(false)} />
           <div className="relative bg-[var(--bg-primary)] rounded-xl shadow-xl p-6 w-full max-w-md border border-[var(--border-default)]">
-            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingRule ? 'Editar Regla' : 'Nueva Regla'}</h3>
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">{editingRule ? t('pages.crm.editRule') : t('pages.crm.newRuleTitle')}</h3>
             <div className="space-y-4">
               <div>
-                <label htmlFor="rule-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Nombre</label>
+                <label htmlFor="rule-name" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.nameCol')}</label>
                 <input id="rule-name" type="text" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="Ej: Puntos por compra" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div>
-                <label htmlFor="rule-desc" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Descripcion</label>
+                <label htmlFor="rule-desc" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.descriptionCol')}</label>
                 <input id="rule-desc" type="text" value={ruleDescription} onChange={(e) => setRuleDescription(e.target.value)} placeholder="Descripcion de la regla" className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="rule-pts" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Puntos por Unidad</label>
+                  <label htmlFor="rule-pts" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.rulePointsPerUnit')}</label>
                   <input id="rule-pts" type="number" min="1" value={rulePoints} onChange={(e) => setRulePoints(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
                 <div>
-                  <label htmlFor="rule-min" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">Monto Minimo ($)</label>
+                  <label htmlFor="rule-min" className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">{t('pages.crm.ruleMinAmount')}</label>
                   <input id="rule-min" type="number" min="0" step="0.01" value={ruleMinAmount} onChange={(e) => setRuleMinAmount(e.target.value)} className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]" />
                 </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6">
-              <Button variant="secondary" onClick={() => setShowRuleModal(false)}>Cancelar</Button>
-              <Button variant="primary" onClick={handleSaveRule}>{editingRule ? 'Guardar' : 'Crear'}</Button>
+              <Button variant="secondary" onClick={() => setShowRuleModal(false)}>{t('common.cancel')}</Button>
+              <Button variant="primary" onClick={handleSaveRule}>{editingRule ? t('common.save') : t('common.create')}</Button>
             </div>
           </div>
         </div>

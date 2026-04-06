@@ -78,6 +78,7 @@ class TokenRefreshResponse(BaseModel):
 class LoginWithRefreshResponse(LoginResponse):
     """Login response including refresh token."""
     refresh_token: str
+    requires_2fa: bool = False  # True when user has 2FA and no code was provided
 
 
 @router.post("/login", response_model=LoginWithRefreshResponse)
@@ -167,6 +168,34 @@ def login(request: Request, response: Response, body: LoginRequest, db: Session 
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Security error: tenant isolation violation",
+            )
+
+    # 2FA check: if user has TOTP enabled (ignore pending setup), verify code
+    if user.totp_secret and not user.totp_secret.startswith("pending:"):
+        totp_code = getattr(body, 'totp_code', None)
+        if not totp_code:
+            # User has 2FA but didn't provide code - signal frontend
+            return LoginWithRefreshResponse(
+                access_token="",
+                refresh_token="",
+                token_type="Bearer",
+                expires_in=0,
+                user=UserInfo(
+                    id=user.id,
+                    email=user.email,
+                    tenant_id=user.tenant_id,
+                    branch_ids=branch_ids,
+                    roles=roles,
+                ),
+                requires_2fa=True,
+            )
+        # Verify TOTP code
+        import pyotp
+        totp = pyotp.TOTP(user.totp_secret)
+        if not totp.verify(totp_code, valid_window=1):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid 2FA code",
             )
 
     # Create access token
@@ -400,3 +429,180 @@ async def logout(
             success=False,
             message="Logout completed but token revocation may be delayed.",
         )
+
+
+# =============================================================================
+# 2FA (TOTP) Endpoints
+# =============================================================================
+
+import pyotp
+
+
+class TwoFactorSetupResponse(BaseModel):
+    """Response for 2FA setup - contains TOTP secret and provisioning URI."""
+    secret: str
+    otpauth_url: str
+    qr_url: str  # URL for QR code generation (frontend can render)
+
+
+class TwoFactorVerifyRequest(BaseModel):
+    """Request to verify a TOTP code during 2FA setup."""
+    code: str
+
+
+class TwoFactorDisableRequest(BaseModel):
+    """Request to disable 2FA - requires current TOTP code."""
+    code: str
+
+
+class TwoFactorStatusResponse(BaseModel):
+    """Response with 2FA status."""
+    enabled: bool
+    message: str
+
+
+@router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
+def setup_2fa(
+    db: Session = Depends(get_db),
+    user: dict = Depends(current_user_context),
+) -> TwoFactorSetupResponse:
+    """
+    Generate a TOTP secret for 2FA setup.
+    Returns the secret and a provisioning URI for QR code generation.
+    The 2FA is NOT enabled until verified with /2fa/verify.
+    """
+    user_id = int(user["sub"])
+    user_email = user.get("email", "")
+
+    db_user = db.scalar(
+        select(User).where(User.id == user_id, User.is_active.is_(True))
+    )
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if db_user.totp_secret:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="2FA is already enabled. Disable it first.",
+        )
+
+    # Generate a new TOTP secret
+    secret = pyotp.random_base32()
+
+    # Store temporarily (not confirmed yet) - we store it on the user
+    # and require verification before it takes effect
+    db_user.totp_secret = f"pending:{secret}"  # Prefix with pending until verified
+    db.commit()
+
+    # Generate provisioning URI
+    totp = pyotp.TOTP(secret)
+    otpauth_url = totp.provisioning_uri(
+        name=user_email,
+        issuer_name="Buen Sabor",
+    )
+
+    # Generate QR code URL using public API
+    qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={otpauth_url}"
+
+    return TwoFactorSetupResponse(
+        secret=secret,
+        otpauth_url=otpauth_url,
+        qr_url=qr_url,
+    )
+
+
+@router.post("/2fa/verify", response_model=TwoFactorStatusResponse)
+def verify_2fa(
+    body: TwoFactorVerifyRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(current_user_context),
+) -> TwoFactorStatusResponse:
+    """
+    Verify a TOTP code to confirm 2FA setup.
+    This activates 2FA for the user's account.
+    """
+    user_id = int(user["sub"])
+
+    db_user = db.scalar(
+        select(User).where(User.id == user_id, User.is_active.is_(True))
+    )
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not db_user.totp_secret or not db_user.totp_secret.startswith("pending:"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending 2FA setup found. Call /2fa/setup first.",
+        )
+
+    # Extract the actual secret
+    secret = db_user.totp_secret.replace("pending:", "")
+    totp = pyotp.TOTP(secret)
+
+    if not totp.verify(body.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid verification code",
+        )
+
+    # Activate 2FA
+    db_user.totp_secret = secret  # Remove "pending:" prefix
+    db.commit()
+
+    logger.info("2FA_ENABLED", user_id=user_id)
+
+    return TwoFactorStatusResponse(
+        enabled=True,
+        message="2FA has been enabled successfully",
+    )
+
+
+@router.delete("/2fa/disable", response_model=TwoFactorStatusResponse)
+def disable_2fa(
+    body: TwoFactorDisableRequest,
+    db: Session = Depends(get_db),
+    user: dict = Depends(current_user_context),
+) -> TwoFactorStatusResponse:
+    """
+    Disable 2FA. Requires a valid current TOTP code.
+    """
+    user_id = int(user["sub"])
+
+    db_user = db.scalar(
+        select(User).where(User.id == user_id, User.is_active.is_(True))
+    )
+    if not db_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not db_user.totp_secret or db_user.totp_secret.startswith("pending:"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="2FA is not currently enabled",
+        )
+
+    # Verify current TOTP code
+    totp = pyotp.TOTP(db_user.totp_secret)
+    if not totp.verify(body.code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid 2FA code",
+        )
+
+    db_user.totp_secret = None
+    db.commit()
+
+    logger.info("2FA_DISABLED", user_id=user_id)
+
+    return TwoFactorStatusResponse(
+        enabled=False,
+        message="2FA has been disabled successfully",
+    )

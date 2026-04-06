@@ -59,6 +59,24 @@ from .crm_service import CRMService
 # Floor Plan
 from .floor_plan_service import FloorPlanService
 
+# Product Customization
+from .customization_service import CustomizationService
+
+# Reservations
+from .reservation_service import ReservationService
+
+# Delivery / Takeout
+from .delivery_service import DeliveryService
+
+# Receipts / Printing
+from .receipt_service import ReceiptService
+
+# Audit
+from .audit_service import AuditService
+
+# Manager Overrides
+from .override_service import OverrideService
+
 __all__ = [
     # Existing services
     "CategoryService",
@@ -92,4 +110,16 @@ __all__ = [
     "CRMService",
     # Floor Plan
     "FloorPlanService",
+    # Product Customization
+    "CustomizationService",
+    # Reservations
+    "ReservationService",
+    # Delivery / Takeout
+    "DeliveryService",
+    # Receipts / Printing
+    "ReceiptService",
+    # Manager Overrides
+    "OverrideService",
+    # Audit
+    "AuditService",
 ]

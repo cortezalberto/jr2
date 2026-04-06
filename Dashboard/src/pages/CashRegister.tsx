@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout'
 import { Card, Button, Select } from '../components/ui'
@@ -86,20 +87,23 @@ function formatDateTime(iso: string | null): string {
   })
 }
 
-const MOVEMENT_TYPE_LABELS: Record<string, string> = {
-  SALE: 'Venta',
-  REFUND: 'Reembolso',
-  EXPENSE: 'Gasto',
-  DEPOSIT: 'Deposito',
-  WITHDRAWAL: 'Retiro',
-  TIP_IN: 'Propina',
+function getMovementTypeLabels(t: (key: string) => string): Record<string, string> {
+  return {
+    SALE: t('pages.cashRegister.movementTypes.SALE'),
+    REFUND: t('pages.cashRegister.movementTypes.REFUND'),
+    EXPENSE: t('pages.cashRegister.movementTypes.EXPENSE'),
+    DEPOSIT: t('pages.cashRegister.movementTypes.DEPOSIT'),
+    WITHDRAWAL: t('pages.cashRegister.movementTypes.WITHDRAWAL'),
+    TIP_IN: t('pages.cashRegister.movementTypes.TIP_IN'),
+  }
 }
 
-const PAYMENT_METHOD_LABELS: Record<string, string> = {
-  CASH: 'Efectivo',
-  CARD: 'Tarjeta',
-  TRANSFER: 'Transferencia',
-  MERCADOPAGO: 'Mercado Pago',
+function getCashPaymentMethodLabels(t: (key: string) => string): Record<string, string> {
+  return {
+    CASH: t('pages.cashRegister.paymentMethods.CASH'),
+    CARD: t('pages.cashRegister.paymentMethods.CARD'),
+    TRANSFER: t('pages.cashRegister.paymentMethods.TRANSFER'),
+    MERCADOPAGO: t('pages.cashRegister.paymentMethods.MERCADOPAGO'),
 }
 
 // -------------------------------------------------------------------------
@@ -107,7 +111,10 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
 // -------------------------------------------------------------------------
 
 export function CashRegisterPage() {
-  useDocumentTitle('Cierre de Caja')
+  const { t } = useTranslation()
+  const MOVEMENT_TYPE_LABELS = getMovementTypeLabels(t)
+  const PAYMENT_METHOD_LABELS = getCashPaymentMethodLabels(t)
+  useDocumentTitle(t('pages.cashRegister.title'))
 
   const branches = useBranchStore(selectBranches)
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
@@ -147,7 +154,7 @@ export function CashRegisterPage() {
   const handleOpenSession = useCallback(() => {
     const cents = Math.round(parseFloat(openingAmount || '0') * 100)
     if (cents < 0) {
-      toast.error('El monto de apertura no puede ser negativo')
+      toast.error(t('pages.cashRegister.negativeAmount'))
       return
     }
 
@@ -177,7 +184,7 @@ export function CashRegisterPage() {
       movement_count: 0,
     })
     setOpeningAmount('')
-    toast.success('Caja abierta correctamente')
+    toast.success(t('pages.cashRegister.cashOpened'))
   }, [openingAmount])
 
   const handleAddMovement = useCallback(() => {
@@ -185,7 +192,7 @@ export function CashRegisterPage() {
 
     const cents = Math.round(parseFloat(movementAmount || '0') * 100)
     if (cents === 0) {
-      toast.error('Ingresa un monto valido')
+      toast.error(t('pages.cashRegister.invalidAmount'))
       return
     }
 
@@ -224,7 +231,7 @@ export function CashRegisterPage() {
 
     setMovementAmount('')
     setMovementDescription('')
-    toast.success('Movimiento registrado')
+    toast.success(t('pages.cashRegister.movementRecorded'))
   }, [sessionSummary, movementType, movementAmount, movementMethod, movementDescription])
 
   const handleCloseSession = useCallback(() => {
@@ -232,7 +239,7 @@ export function CashRegisterPage() {
 
     const actualCents = Math.round(parseFloat(actualAmount || '0') * 100)
     if (actualCents < 0) {
-      toast.error('El monto real no puede ser negativo')
+      toast.error(t('pages.cashRegister.negativeActual'))
       return
     }
 
@@ -261,7 +268,7 @@ export function CashRegisterPage() {
     setActualAmount('')
     setCloseNotes('')
     setShowCloseForm(false)
-    toast.success('Caja cerrada correctamente')
+    toast.success(t('pages.cashRegister.cashClosed'))
   }, [sessionSummary, currentSession, actualAmount, closeNotes])
 
   // Movement type options
@@ -277,15 +284,15 @@ export function CashRegisterPage() {
 
   return (
     <PageContainer
-      title="Cierre de Caja"
-      description="Gestion de apertura, movimientos y cierre de caja"
+      title={t('pages.cashRegister.title')}
+      description={t('pages.cashRegister.description')}
     >
       {/* Branch filter */}
       <div className="flex gap-4 mb-6">
         <div className="w-64">
           <Select
             id="cash-branch-filter"
-            label="Sucursal"
+            label={t('forms.labels.branch')}
             options={branchOptions}
             value={branchFilter}
             onChange={(e) => setBranchFilter(e.target.value)}
@@ -355,8 +362,8 @@ export function CashRegisterPage() {
                       <CheckCircle className="w-5 h-5 text-green-500" aria-hidden="true" />
                     </div>
                     <div>
-                      <p className="text-[var(--text-tertiary)] text-sm">Estado</p>
-                      <p className="text-lg font-bold text-green-400">ABIERTA</p>
+                      <p className="text-[var(--text-tertiary)] text-sm">{t('common.status')}</p>
+                      <p className="text-lg font-bold text-green-400">{t('pages.cashRegister.openedStatus')}</p>
                     </div>
                   </div>
                 </Card>
@@ -366,7 +373,7 @@ export function CashRegisterPage() {
                       <DollarSign className="w-5 h-5 text-[var(--primary-500)]" aria-hidden="true" />
                     </div>
                     <div>
-                      <p className="text-[var(--text-tertiary)] text-sm">Apertura</p>
+                      <p className="text-[var(--text-tertiary)] text-sm">{t('pages.cashRegister.opening')}</p>
                       <p className="text-lg font-bold text-[var(--text-primary)]">
                         {formatCurrency(currentSession.opening_amount_cents)}
                       </p>
@@ -379,7 +386,7 @@ export function CashRegisterPage() {
                       <Clock className="w-5 h-5 text-blue-500" aria-hidden="true" />
                     </div>
                     <div>
-                      <p className="text-[var(--text-tertiary)] text-sm">Abierta desde</p>
+                      <p className="text-[var(--text-tertiary)] text-sm">{t('pages.cashRegister.openedSince')}</p>
                       <p className="text-lg font-bold text-[var(--text-primary)]">
                         {formatDateTime(currentSession.opened_at)}
                       </p>
@@ -397,7 +404,7 @@ export function CashRegisterPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <Select
                     id="movement-type"
-                    label="Tipo"
+                    label={t('pages.cashRegister.typeLabel')}
                     options={movementTypeOptions}
                     value={movementType}
                     onChange={(e) => setMovementType(e.target.value)}
@@ -422,7 +429,7 @@ export function CashRegisterPage() {
                   </div>
                   <Select
                     id="movement-method"
-                    label="Metodo de Pago"
+                    label={t('pages.cashRegister.paymentMethodLabel')}
                     options={paymentMethodOptions}
                     value={movementMethod}
                     onChange={(e) => setMovementMethod(e.target.value)}
@@ -439,7 +446,7 @@ export function CashRegisterPage() {
                       type="text"
                       value={movementDescription}
                       onChange={(e) => setMovementDescription(e.target.value)}
-                      placeholder="Opcional"
+                      placeholder={t('common.optional')}
                       className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
                     />
                   </div>
@@ -454,10 +461,10 @@ export function CashRegisterPage() {
               {/* Movements table */}
               <Card className="p-6">
                 <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">
-                  Movimientos ({sessionSummary.movement_count})
+                  {t('pages.cashRegister.movementsCount', { count: sessionSummary.movement_count })}
                 </h3>
                 {sessionSummary.movements.length === 0 ? (
-                  <p className="text-[var(--text-muted)] text-sm">No hay movimientos registrados</p>
+                  <p className="text-[var(--text-muted)] text-sm">{t('pages.cashRegister.noMovements')}</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -566,7 +573,7 @@ export function CashRegisterPage() {
                           step="0.01"
                           value={actualAmount}
                           onChange={(e) => setActualAmount(e.target.value)}
-                          placeholder="Conta el efectivo y poné el total"
+                          placeholder={t('pages.cashRegister.actualAmountPlaceholder')}
                           className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
                         />
                       </div>
@@ -581,7 +588,7 @@ export function CashRegisterPage() {
                           id="close-notes"
                           value={closeNotes}
                           onChange={(e) => setCloseNotes(e.target.value)}
-                          placeholder="Observaciones del cierre..."
+                          placeholder={t('pages.cashRegister.closingNotesPlaceholder')}
                           rows={2}
                           className="w-full px-3 py-2 bg-[var(--bg-tertiary)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-500)]"
                         />
@@ -609,7 +616,7 @@ export function CashRegisterPage() {
             Historial de Sesiones
           </h3>
           {sessionHistory.length === 0 ? (
-            <p className="text-[var(--text-muted)] text-sm">No hay sesiones cerradas</p>
+            <p className="text-[var(--text-muted)] text-sm">{t('pages.cashRegister.noClosedSessions')}</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">

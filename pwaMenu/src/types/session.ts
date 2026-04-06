@@ -190,8 +190,7 @@ export interface RoundConfirmation {
 /**
  * @deprecated Use OrderRecord instead. This type is only used in api.ts
  * for backwards compatibility with the backend API contract.
- * LOW-04 FIX: Added ticket reference to TODO.
- * TODO(BACKEND-MIGRATION): Remove when backend migrates to OrderRecord response format.
+ * The backend uses Round/RoundItem models; this maps to that format.
  */
 export interface Order {
   id: string

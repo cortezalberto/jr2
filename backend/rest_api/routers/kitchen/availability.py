@@ -16,6 +16,7 @@ from shared.infrastructure.events import (
     get_redis_pool,
     publish_product_availability_event,
 )
+from shared.infrastructure.cache.menu_cache import invalidate_all_menu_caches
 from shared.security.auth import current_user_context, require_roles
 from rest_api.models import BranchProduct
 
@@ -108,6 +109,9 @@ async def toggle_product_availability(
 
     branch_product.is_available = body.is_available
     safe_commit(db)
+
+    # Invalidate menu cache since product availability affects the public menu
+    invalidate_all_menu_caches()
 
     logger.info(
         "Product availability toggled",

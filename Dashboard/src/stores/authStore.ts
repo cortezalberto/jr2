@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import { authAPI, setAuthToken, setRefreshToken, setOnTokenExpired, setOnTokenRefreshed, type AuthUser, type LoginResponse } from '../services/api'
 import { dashboardWS } from '../services/websocket'
 import { STORAGE_KEYS } from '../utils/constants'
+import { logger } from '../utils/logger'
 import {
   isAdmin,
   isManager,
@@ -50,7 +51,7 @@ function startTokenRefreshInterval(refreshFn: () => Promise<boolean>): void {
 
   const scheduleNextRefresh = () => {
     const interval = getRefreshIntervalWithJitter()
-    console.log(`[AuthStore] Next token refresh in ${Math.round(interval / 1000)}s`)
+    logger.debug('AuthStore', `Next token refresh in ${Math.round(interval / 1000)}s`)
 
     refreshTimeoutId = setTimeout(async () => {
       try {
@@ -60,7 +61,7 @@ function startTokenRefreshInterval(refreshFn: () => Promise<boolean>): void {
           authBroadcast.postMessage({ type: 'TOKEN_REFRESHED' })
         }
       } catch (err) {
-        console.error('[AuthStore] Scheduled token refresh failed', err)
+        logger.error('AuthStore', 'Scheduled token refresh failed', err)
       }
       // Schedule next refresh regardless of success/failure
       scheduleNextRefresh()
@@ -68,14 +69,14 @@ function startTokenRefreshInterval(refreshFn: () => Promise<boolean>): void {
   }
 
   scheduleNextRefresh()
-  console.log('[AuthStore] Token refresh interval started with jitter')
+  logger.debug('AuthStore', 'Token refresh interval started with jitter')
 }
 
 function stopTokenRefreshInterval(): void {
   if (refreshTimeoutId) {
     clearTimeout(refreshTimeoutId)
     refreshTimeoutId = null
-    console.log('[AuthStore] Token refresh interval stopped')
+    logger.debug('AuthStore', 'Token refresh interval stopped')
   }
 }
 
@@ -103,29 +104,29 @@ function initAuthBroadcast(): BroadcastChannel {
       switch (type) {
         case 'TOKEN_REFRESHED':
           // Another tab refreshed - skip our next scheduled refresh
-          console.log('[AuthStore] Token refreshed in another tab')
+          logger.debug('AuthStore', 'Token refreshed in another tab')
           break
 
         case 'LOGOUT':
           // Another tab logged out - sync logout here
-          console.log('[AuthStore] Logout detected in another tab')
+          logger.debug('AuthStore', 'Logout detected in another tab')
           performLocalLogout()
           break
 
         case 'LOGIN':
           // Another tab logged in - reload to sync state
-          console.log('[AuthStore] Login detected in another tab')
+          logger.debug('AuthStore', 'Login detected in another tab')
           window.location.reload()
           break
       }
     }
 
     authBroadcast.onmessageerror = () => {
-      console.warn('[AuthStore] BroadcastChannel message error')
+      logger.warn('AuthStore', 'BroadcastChannel message error')
     }
   } catch {
     // BroadcastChannel not supported - create mock
-    console.warn('[AuthStore] BroadcastChannel not supported')
+    logger.warn('AuthStore', 'BroadcastChannel not supported')
     authBroadcast = {
       postMessage: () => {},
       close: () => {},
@@ -186,7 +187,7 @@ function performLocalLogout(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.AUTH || 'dashboard-auth')
   } catch {
-    console.warn('[AuthStore] Failed to clear localStorage')
+    logger.warn('AuthStore', 'Failed to clear localStorage')
   }
 }
 
@@ -204,7 +205,7 @@ interface AuthState {
   refreshAttempts: number
   isRefreshing: boolean
   // Actions
-  login: (email: string, password: string) => Promise<boolean>
+  login: (email: string, password: string, totpCode?: string) => Promise<boolean | 'requires_2fa'>
   logout: () => void
   checkAuth: () => Promise<boolean>
   clearError: () => void
@@ -227,10 +228,16 @@ export const useAuthStore = create<AuthState>()(
       refreshAttempts: 0,
       isRefreshing: false,
 
-      login: async (email: string, password: string): Promise<boolean> => {
+      login: async (email: string, password: string, totpCode?: string): Promise<boolean | 'requires_2fa'> => {
         set({ isLoading: true, error: null })
         try {
-          const response = await authAPI.login(email, password) as LoginResponse & { refresh_token?: string }
+          const response = await authAPI.login(email, password, totpCode) as LoginResponse & { refresh_token?: string; requires_2fa?: boolean }
+
+          // Check if 2FA is required
+          if (response.requires_2fa) {
+            set({ isLoading: false })
+            return 'requires_2fa'
+          }
 
           // Store refresh token in API service
           if (response.refresh_token) {
@@ -311,7 +318,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           localStorage.removeItem(STORAGE_KEYS.AUTH || 'dashboard-auth')
         } catch {
-          console.warn('[AuthStore] Failed to clear localStorage')
+          logger.warn('AuthStore', 'Failed to clear localStorage')
         }
       },
 
@@ -370,13 +377,13 @@ export const useAuthStore = create<AuthState>()(
 
         // Prevent concurrent refresh attempts
         if (isRefreshing) {
-          console.log('[AuthStore] Token refresh already in progress, skipping')
+          logger.debug('AuthStore', 'Token refresh already in progress, skipping')
           return false
         }
 
         // Check max retries before attempting
         if (refreshAttempts >= MAX_REFRESH_ATTEMPTS) {
-          console.warn('[AuthStore] Max refresh attempts reached, logging out')
+          logger.warn('AuthStore', 'Max refresh attempts reached, logging out')
           get().logout()
           return false
         }
@@ -391,20 +398,20 @@ export const useAuthStore = create<AuthState>()(
           const result = await authAPI.refresh()
 
           if (!result) {
-            console.warn('[AuthStore] Token refresh returned empty result')
+            logger.warn('AuthStore', 'Token refresh returned empty result')
             set({ isRefreshing: false })
             return false
           }
 
           // SEC-06: Validate token rotation - backend SHOULD rotate refresh token
           if (!result.refresh_token) {
-            console.warn('[AuthStore] Backend did not rotate refresh token - security warning')
+            logger.warn('AuthStore', 'Backend did not rotate refresh token - security warning')
             // Continue but log warning - this should be fixed on backend
           }
 
           // SEC-06: Validate new token is different from current
           if (result.refresh_token && result.refresh_token === currentRefreshToken) {
-            console.error('[AuthStore] Refresh token not rotated - potential security issue')
+            logger.error('AuthStore', 'Refresh token not rotated - potential security issue')
             // This could indicate a replay attack or misconfigured backend
           }
 
@@ -421,10 +428,10 @@ export const useAuthStore = create<AuthState>()(
             setRefreshToken(result.refresh_token)
           }
 
-          console.log('[AuthStore] Token refreshed successfully')
+          logger.debug('AuthStore', 'Token refreshed successfully')
           return true
         } catch (err) {
-          console.error('[AuthStore] Token refresh failed', err)
+          logger.error('AuthStore', 'Token refresh failed', err)
           set({ isRefreshing: false })
           return false
         }

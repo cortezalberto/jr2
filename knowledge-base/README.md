@@ -1,158 +1,91 @@
 # Knowledge Base — Integrador / Buen Sabor
 
-> Sistema de gestión de restaurantes multi-tenant. Esta base de conocimiento permite reconstruir, escalar o migrar el sistema **sin acceso al código fuente**.
+> Índice de navegación. Cada carpeta agrupa documentos por dominio.
 
-**Generada:** 2026-04-04  
-**Archivos:** 44 documentos | ~650 KB  
-**Version:** v3 (madurez de features, dependencias, DX, extensibilidad, i18n)  
-**Cobertura:** Backend, WebSocket Gateway, Dashboard, pwaMenu, pwaWaiter, DevOps
+**Actualizada:** 2026-04-05 | **Versión:** v4 | **Documentos:** 31 | **Carpetas:** 7
 
 ---
 
-## Índice
+## 01-negocio/ — Dominio y Reglas
 
-### Núcleo del Producto
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 01 | [Visión General](01_vision_general.md) | Qué es el sistema, stack, componentes, métricas |
-| 02 | [Problema que Resuelve](02_problema_que_resuelve.md) | Los 10 problemas de negocio que ataca |
-| 03 | [Propuesta de Valor](03_propuesta_de_valor.md) | Valor para cada actor, diferenciadores |
-| 04 | [Actores y Roles](04_actores_y_roles.md) | RBAC, autenticación, permisos por rol |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_vision_y_contexto.md](01-negocio/01_vision_y_contexto.md) | Visión del sistema, problema que resuelve, propuesta de valor, stack |
+| [02_actores_y_roles.md](01-negocio/02_actores_y_roles.md) | RBAC, 6 actores, métodos de auth, usuarios de prueba |
+| [03_funcionalidades.md](01-negocio/03_funcionalidades.md) | Features por componente con estado de madurez |
+| [04_reglas_de_negocio.md](01-negocio/04_reglas_de_negocio.md) | Reglas + máquinas de estado (sessions, rounds, billing, allergens) |
+| [05_flujos_y_casos_de_uso.md](01-negocio/05_flujos_y_casos_de_uso.md) | Flujos narrativos + casos de uso formales por actor |
 
-### Funcionalidad
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 05 | [Funcionalidades](05_funcionalidades.md) | Catálogo completo de features por componente |
-| 06 | [Flujos de Usuario](06_flujos_de_usuario.md) | 9 flujos end-to-end documentados paso a paso |
-| 07 | [Casos de Uso](07_casos_de_uso.md) | 10 casos de uso formales con alternativas |
+## 02-arquitectura/ — Diseño Técnico
 
-### Lógica del Sistema
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 08 | [Reglas de Negocio](08_reglas_de_negocio.md) | Multi-tenant, precios, RBAC, tokens, eventos |
-| 09 | [Modelo de Datos](09_modelo_de_datos.md) | 34+ tablas, relaciones, convenciones |
-| 10 | [Estado y Transiciones](10_estado_y_transiciones.md) | 11 máquinas de estado (rounds, sesiones, pagos, etc.) |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_arquitectura_general.md](02-arquitectura/01_arquitectura_general.md) | Clean Architecture, capas, 15 componentes clave, infra |
+| [02_modelo_de_datos.md](02-arquitectura/02_modelo_de_datos.md) | 18+ tablas, relaciones, convenciones de datos |
+| [03_api_y_endpoints.md](02-arquitectura/03_api_y_endpoints.md) | REST completo, WebSocket endpoints, auth por ruta |
+| [04_eventos_y_websocket.md](02-arquitectura/04_eventos_y_websocket.md) | Eventos, routing matrix, Outbox vs Redis, flujos de datos |
+| [05_patrones_de_diseno.md](02-arquitectura/05_patrones_de_diseno.md) | 57 patrones, gap analysis planificado vs implementado |
+| [06_capas_de_abstraccion.md](02-arquitectura/06_capas_de_abstraccion.md) | 8 puntos de extensión con código de ejemplo |
+| [07_decisiones_y_tradeoffs.md](02-arquitectura/07_decisiones_y_tradeoffs.md) | 23 ADRs agrupados por dominio + matriz de riesgo |
 
-### Arquitectura Técnica
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 11 | [Arquitectura General](11_arquitectura_general.md) | Topología, capas, patrones de comunicación |
-| 12 | [Estructura del Código](12_estructura_del_codigo.md) | Árbol completo del proyecto con descripciones |
-| 13 | [Componentes Clave](13_componentes_clave.md) | 15 componentes críticos documentados en profundidad |
-| 14 | [API Endpoints](14_api_endpoints.md) | Todos los endpoints REST + WebSocket |
-| 15 | [Integraciones](15_integraciones.md) | Mercado Pago, Redis, PostgreSQL, Ollama, PWA |
+## 03-seguridad/ — Modelo de Seguridad
 
-### Infraestructura
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 16 | [Configuración y Entornos](16_configuracion_y_entornos.md) | Variables de entorno, configs por componente |
-| 17 | [Dependencias](17_dependencias.md) | Todas las dependencias con versiones y propósito |
-| 18 | [Despliegue](18_despliegue.md) | Docker, DevContainer, producción, health checks |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_modelo_de_seguridad.md](03-seguridad/01_modelo_de_seguridad.md) | JWT, Table Tokens, RBAC, rate limiting, SSRF/XSS/CSRF |
+| [02_superficie_de_ataque.md](03-seguridad/02_superficie_de_ataque.md) | 161 endpoints, headers, inputs, gaps identificados |
 
-### Decisiones
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 19 | [Decisiones Técnicas](19_decisiones_tecnicas.md) | 18 decisiones arquitectónicas con razonamiento |
-| 20 | [Tradeoffs](20_tradeoffs.md) | 10 compromisos clave con análisis de riesgo |
+## 04-infraestructura/ — Deploy, Config, Ops
 
-### Estado Actual
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 21 | [Limitaciones](21_limitaciones.md) | 13 funcionales + 13 técnicas |
-| 22 | [Deuda Técnica](22_deuda_tecnica.md) | 13 items priorizados (HIGH/MEDIUM/LOW) |
-| 23 | [Riesgos](23_riesgos.md) | 10 riesgos (CRITICAL/HIGH/MEDIUM) con mitigación |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_configuracion_y_entornos.md](04-infraestructura/01_configuracion_y_entornos.md) | Variables .env por componente, diferencias dev/prod |
+| [02_dependencias.md](04-infraestructura/02_dependencias.md) | Stack completo con versiones, justificaciones, EOL |
+| [03_despliegue.md](04-infraestructura/03_despliegue.md) | Docker Compose, producción escalada, CI/CD, troubleshooting |
+| [04_migraciones.md](04-infraestructura/04_migraciones.md) | Cadena Alembic 001-011, comandos, workflow |
+| [05_integraciones.md](04-infraestructura/05_integraciones.md) | 7 integraciones externas (MercadoPago, Redis, PG, Ollama...) |
 
-### Evolución
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 24 | [Roadmap Sugerido](24_roadmap_sugerido.md) | 5 fases desde fundaciones hasta inteligencia |
-| 25 | [Oportunidades de Mejora](25_oportunidades_de_mejora.md) | 18 mejoras en arquitectura, performance, DX, producto |
+## 05-dx/ — Developer Experience
 
-### Análisis Crítico
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 26 | [Suposiciones Detectadas](26_suposiciones_detectadas.md) | 12 suposiciones implícitas con evidencia y riesgo |
-| 27 | [Preguntas Abiertas](27_preguntas_abiertas.md) | 24 preguntas que necesitan respuesta del negocio |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_onboarding.md](05-dx/01_onboarding.md) | Setup rápido, prerrequisitos, troubleshooting inicial |
+| [02_tooling.md](05-dx/02_tooling.md) | Inventario de herramientas (Docker, CLI, testing, CI) |
+| [03_trampas_conocidas.md](05-dx/03_trampas_conocidas.md) | Gotchas: config, Windows, Zustand, SQLAlchemy, security |
+| [04_convenciones_y_estandares.md](05-dx/04_convenciones_y_estandares.md) | **NUEVO** — Naming, DB, frontend, backend, API, UI, i18n |
+| [05_workflow_implementacion.md](05-dx/05_workflow_implementacion.md) | **NUEVO** — Guía end-to-end: modelo → migración → servicio → frontend → test |
+| [06_estrategia_testing.md](05-dx/06_estrategia_testing.md) | **NUEVO** — Filosofía, pytest, Vitest, E2E, CI, coverage |
+| [07_internacionalizacion.md](05-dx/07_internacionalizacion.md) | Estado i18n por componente (pwaMenu 100%, Dashboard scaffold) |
 
-### Patrones y Calidad (v2)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 28 | [Patrones de Diseño](28_patrones_de_diseno.md) | 57 patrones con evidencia de código (referencia rápida) |
-| 29 | [Planificados vs Implementados](29_patrones_planificados_vs_implementados.md) | 12 planificados: 4 completos, 7 gaps en doc, 1 no implementado |
-| 30 | [Inconsistencias Detectadas](30_inconsistencias_detectadas.md) | 7 inconsistencias docs-vs-código (6 corregidas, 1 documentada) |
+## 06-estado-del-proyecto/ — Estado Actual y Futuro
 
-### Seguridad (v2)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 31 | [Modelo de Seguridad](31_modelo_de_seguridad.md) | Auth, RBAC, rate limiting, SSRF, headers, secrets |
-| 32 | [Superficie de Ataque](32_superficie_de_ataque.md) | 161 endpoints, 4 WS, inputs, gaps identificados |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_metricas.md](06-estado-del-proyecto/01_metricas.md) | 649 archivos, 130K LOC, métricas por componente |
+| [02_madurez_y_dependencias.md](06-estado-del-proyecto/02_madurez_y_dependencias.md) | Matriz de madurez (52 features), dependencias, priorización |
+| [03_salud_tecnica.md](06-estado-del-proyecto/03_salud_tecnica.md) | Limitaciones + deuda técnica + riesgos (depurado) |
+| [04_roadmap.md](06-estado-del-proyecto/04_roadmap.md) | Fases 0-5, oportunidades de mejora, quick wins |
+| [05_preguntas_y_suposiciones.md](06-estado-del-proyecto/05_preguntas_y_suposiciones.md) | Suposiciones validadas/pendientes, preguntas abiertas |
+| [06_inconsistencias.md](06-estado-del-proyecto/06_inconsistencias.md) | Registro histórico (todas resueltas a 2026-04-05) |
 
-### Flujos End-to-End (v2)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 33 | [Flujos de Eventos](33_flujos_de_eventos.md) | 5 flujos críticos trazados desde UI hasta último consumidor |
-| 34 | [Flujos de Datos](34_flujos_de_datos.md) | Conversiones de tipos, flujo UI → API → DB → UI |
+## 07-anexos/
 
-### Métricas (v2)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 35 | [Métricas del Proyecto](35_metricas_del_proyecto.md) | 130K LOC, 649 archivos, 161 endpoints, 55 modelos |
-
-### Madurez de Features (v3)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 36 | [Matriz de Madurez](36_matriz_de_madurez.md) | 44 features: 27 completas, 8 funcionales, 2 parciales, 6 scaffolds |
-| 37 | [Features Parciales](37_features_parciales.md) | 17 features incompletas con qué falta y esfuerzo estimado |
-
-### Dependencias entre Features (v3)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 38 | [Mapa de Dependencias](38_mapa_de_dependencias.md) | Si toco X, qué se rompe. Grafo por dominio |
-| 39 | [Cadena de Migraciones](39_cadena_de_migraciones.md) | 4 migraciones Alembic: orden, dependencias, riesgos |
-
-### Developer Experience (v3)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 40 | [Onboarding Developer](40_onboarding_developer.md) | Sistema corriendo en 5-15 min desde cero |
-| 41 | [Tooling Inventario](41_tooling_inventario.md) | Scripts, CLI, seed, codegen, backup, E2E |
-| 42 | [Trampas Conocidas](42_trampas_conocidas.md) | 22 gotchas: config, Windows, tipos, Zustand, seguridad |
-
-### Extensibilidad (v3)
-| # | Archivo | Descripción |
-|---|---------|-------------|
-| 43 | [Capas de Abstracción](43_capas_de_abstraccion.md) | 8 interfaces/ABCs: PaymentGateway, Auth Strategy, etc. |
-| 44 | [Internacionalización](44_internacionalizacion.md) | pwaMenu 100%, Dashboard scaffold, pwaWaiter sin i18n |
+| Documento | Contenido |
+|-----------|-----------|
+| [01_habilidades_recomendadas.md](07-anexos/01_habilidades_recomendadas.md) | 40 skills recomendadas para IA, organizadas por tier |
+| [02_estructura_del_codigo.md](07-anexos/02_estructura_del_codigo.md) | File trees completos del monorepo |
 
 ---
 
-## Cómo Usar Esta Base de Conocimiento
+## Rutas de Navegación
 
-| Objetivo | Empezar por |
-|----------|-------------|
-| **Entender el sistema** | 01 → 02 → 03 → 04 |
-| **Onboarding técnico** | 11 → 12 → 13 → 14 → 16 |
-| **Implementar feature** | 05 → 06 → 08 → 09 → 10 → 33 |
-| **Evaluar el sistema** | 21 → 22 → 23 → 26 → 27 → 30 |
-| **Auditar seguridad** | 31 → 32 → 15 |
-| **Entender eventos real-time** | 33 → 34 → 14 |
-| **Planificar evolución** | 24 → 25 → 20 → 19 → 35 |
-| **Revisar patrones** | 28 → 29 → 30 |
-| **Onboarding de dev nuevo** | 40 → 42 → 41 |
-| **Priorizar trabajo** | 36 → 37 → 38 |
-| **Extender el sistema** | 43 → 44 → 19 |
-| **Reconstruir desde cero** | Leer en orden 01 → 44 |
-
----
-
-## Stack Tecnológico (Resumen)
-
-| Capa | Tecnología |
-|------|------------|
-| **Frontend** | React 19.2 + TypeScript 5.9 + Vite 7.2 + Zustand 5 + Tailwind 4 |
-| **Backend** | FastAPI 0.115 + SQLAlchemy 2.0 + Pydantic 2.10 |
-| **Base de Datos** | PostgreSQL 16 + pgvector |
-| **Cache/Events** | Redis 7 (Pub/Sub, blacklist, rate limiting) |
-| **Real-time** | WebSocket Gateway (FastAPI, 400+ usuarios concurrentes) |
-| **Pagos** | Mercado Pago (ARS) |
-| **AI** | Ollama (qwen2.5:7b + nomic-embed-text) |
-| **Infra** | Docker Compose, DevContainer |
+| Necesito... | Leer |
+|-------------|------|
+| Entender el sistema | 01-negocio/01 → 01-negocio/02 → 02-arquitectura/01 |
+| Hacer onboarding | 05-dx/01 → 05-dx/04 → 05-dx/05 |
+| Implementar un feature | 05-dx/05 → 01-negocio/04 → 02-arquitectura/03 |
+| Entender seguridad | 03-seguridad/01 → 03-seguridad/02 |
+| Evaluar estado del proyecto | 06-estado/01 → 06-estado/02 → 06-estado/03 |
+| Debugging | 05-dx/03 → 04-infraestructura/01 |
+| Decisiones de arquitectura | 02-arquitectura/07 → 02-arquitectura/05 |
+| Deploy a producción | 04-infraestructura/03 → 04-infraestructura/04 |

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { PageContainer } from '../components/layout'
 import { Button, Select } from '../components/ui'
@@ -50,19 +51,22 @@ const STATUS_COLORS: Record<string, { bg: string; border: string; text: string }
   OUT_OF_SERVICE: { bg: 'bg-zinc-500/20', border: 'border-zinc-500', text: 'text-zinc-400' },
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  FREE: 'Libre',
-  OPEN: 'Ocupada',
-  PAYING: 'Pagando',
-  OUT_OF_SERVICE: 'Fuera de Servicio',
-}
+// STATUS_LABELS moved to component to use t()
 
 // -------------------------------------------------------------------------
 // Component
 // -------------------------------------------------------------------------
 
 export function FloorPlanPage() {
-  useDocumentTitle('Plan de Piso')
+  const { t } = useTranslation()
+  useDocumentTitle(t('pages.floorPlan.title'))
+
+  const STATUS_LABELS: Record<string, string> = {
+    FREE: t('pages.floorPlan.statusFree'),
+    OPEN: t('pages.floorPlan.statusOpen'),
+    PAYING: t('pages.floorPlan.statusPaying'),
+    OUT_OF_SERVICE: t('pages.floorPlan.statusOutOfService'),
+  }
 
   const branches = useBranchStore(selectBranches)
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
@@ -176,7 +180,7 @@ export function FloorPlanPage() {
 
   const handleSave = useCallback(() => {
     // In production: PUT /api/admin/floor-plans/{id}/tables
-    toast.success('Posiciones guardadas correctamente')
+    toast.success(t('pages.floorPlan.positionsSaved'))
     setIsDirty(false)
   }, [])
 
@@ -202,7 +206,7 @@ export function FloorPlanPage() {
 
     setLiveTables(repositioned)
     setIsDirty(true)
-    toast.info('Layout generado automaticamente')
+    toast.info(t('pages.floorPlan.layoutGenerated'))
   }, [currentPlan, liveTables])
 
   // -----------------------------------------------------------------------
@@ -227,16 +231,16 @@ export function FloorPlanPage() {
 
   if (!selectedBranchId) {
     return (
-      <PageContainer title="Plan de Piso" description="Selecciona una sucursal para ver el plano">
+      <PageContainer title={t('pages.floorPlan.title')} description={t('pages.floorPlan.selectBranchDesc')}>
         <div className="flex items-center justify-center h-64 text-[var(--text-muted)]">
-          Selecciona una sucursal desde el Dashboard
+          {t('pages.floorPlan.selectBranchMessage')}
         </div>
       </PageContainer>
     )
   }
 
   return (
-    <PageContainer title="Plan de Piso" description="Vista y edicion del plano del local">
+    <PageContainer title={t('pages.floorPlan.title')} description={t('pages.floorPlan.description')}>
       {/* Toolbar */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
         {planOptions.length > 1 && (
@@ -253,19 +257,19 @@ export function FloorPlanPage() {
             variant={viewMode === 'live' ? 'primary' : 'secondary'}
             size="sm"
             onClick={() => setViewMode('live')}
-            aria-label="Vista en vivo"
+            aria-label={t('pages.floorPlan.liveViewLabel')}
           >
             <Eye className="w-4 h-4 mr-1" aria-hidden="true" />
-            En Vivo
+            {t('pages.floorPlan.liveView')}
           </Button>
           <Button
             variant={viewMode === 'edit' ? 'primary' : 'secondary'}
             size="sm"
             onClick={() => setViewMode('edit')}
-            aria-label="Modo edicion"
+            aria-label={t('pages.floorPlan.editModeLabel')}
           >
             <Grid className="w-4 h-4 mr-1" aria-hidden="true" />
-            Editar
+            {t('pages.floorPlan.editMode')}
           </Button>
         </div>
 
@@ -275,20 +279,20 @@ export function FloorPlanPage() {
               variant="secondary"
               size="sm"
               onClick={handleAutoGenerate}
-              aria-label="Auto generar layout"
+              aria-label={t('pages.floorPlan.autoLayoutLabel')}
             >
               <RotateCcw className="w-4 h-4 mr-1" aria-hidden="true" />
-              Auto Layout
+              {t('pages.floorPlan.autoLayout')}
             </Button>
             <Button
               variant="primary"
               size="sm"
               onClick={handleSave}
               disabled={!isDirty}
-              aria-label="Guardar posiciones"
+              aria-label={t('pages.floorPlan.saveLabel')}
             >
               <Save className="w-4 h-4 mr-1" aria-hidden="true" />
-              Guardar
+              {t('pages.floorPlan.save')}
             </Button>
           </>
         )}
@@ -320,7 +324,7 @@ export function FloorPlanPage() {
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         role="application"
-        aria-label="Plano de piso interactivo"
+        aria-label={t('pages.floorPlan.canvasLabel')}
       >
         {liveTables.map((table) => {
           const status = table.status ?? 'FREE'
@@ -366,14 +370,14 @@ export function FloorPlanPage() {
 
       {/* Info bar */}
       <div className="mt-3 flex items-center gap-4 text-xs text-[var(--text-muted)]">
-        <span>Mesas: {liveTables.length}</span>
+        <span>{t('pages.floorPlan.tables')}: {liveTables.length}</span>
         {currentPlan && (
           <span>
-            Plano: {currentPlan.width} x {currentPlan.height}px
+            {t('pages.floorPlan.plan')}: {currentPlan.width} x {currentPlan.height}px
           </span>
         )}
         {viewMode === 'edit' && isDirty && (
-          <span className="text-orange-400 font-medium">Cambios sin guardar</span>
+          <span className="text-orange-400 font-medium">{t('pages.floorPlan.unsavedChanges')}</span>
         )}
       </div>
     </PageContainer>

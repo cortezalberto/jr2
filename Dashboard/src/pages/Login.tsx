@@ -1,6 +1,7 @@
 import { useState, useCallback, useActionState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LogIn, AlertCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Button, Input } from '../components/ui'
 import { useAuthStore, selectIsAuthenticated, selectAuthError } from '../stores/authStore'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
@@ -15,7 +16,8 @@ type FormState = {
 }
 
 export function LoginPage() {
-  useDocumentTitle('Iniciar Sesion')
+  const { t } = useTranslation()
+  useDocumentTitle(t('login.title'))
 
   const navigate = useNavigate()
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
@@ -26,7 +28,9 @@ export function LoginPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    totpCode: '',
   })
+  const [requires2FA, setRequires2FA] = useState(false)
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -44,26 +48,31 @@ export function LoginPage() {
     async (_prevState: FormState, formData: FormData): Promise<FormState> => {
       const email = formData.get('email') as string
       const password = formData.get('password') as string
+      const totpCode = formData.get('totpCode') as string || undefined
 
       // Basic validation
       const errors: FormState['errors'] = {}
       if (!email || !email.includes('@')) {
-        errors.email = 'Email invalido'
+        errors.email = t('login.invalidEmail')
       }
       if (!password || password.length < 4) {
-        errors.password = 'La contrasena debe tener al menos 4 caracteres'
+        errors.password = t('login.passwordTooShort')
       }
 
       if (Object.keys(errors).length > 0) {
         return { errors, isSuccess: false }
       }
 
-      const success = await login(email, password)
-      if (success) {
+      const result = await login(email, password, totpCode)
+      if (result === 'requires_2fa') {
+        setRequires2FA(true)
+        return { isSuccess: false, message: t('login.enter2FA', 'Ingresa tu codigo de autenticacion') }
+      }
+      if (result) {
         return { isSuccess: true }
       }
 
-      return { isSuccess: false, message: 'Error de autenticacion' }
+      return { isSuccess: false, message: t('login.authError') }
     },
     [login]
   )
@@ -97,15 +106,15 @@ export function LoginPage() {
             className="text-2xl font-bold text-[var(--text-primary)]"
             style={{ fontFamily: 'var(--font-heading)' }}
           >
-            Buen Sabor
+            {t('login.brandName')}
           </h1>
-          <p className="text-[var(--text-tertiary)] mt-2">Panel de Administracion</p>
+          <p className="text-[var(--text-tertiary)] mt-2">{t('login.subtitle')}</p>
         </div>
 
         {/* Login Form */}
         <div className="bg-[var(--bg-primary)] border border-[var(--border-default)] rounded-xl p-8 shadow-[var(--shadow-lg)]">
           <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-6">
-            Iniciar Sesion
+            {t('login.title')}
           </h2>
 
           {/* Error Alert */}
@@ -120,27 +129,40 @@ export function LoginPage() {
 
           <form action={formAction} className="space-y-5">
             <Input
-              label="Email"
+              label={t('login.emailLabel')}
               name="email"
               type="email"
               value={formData.email}
               onChange={handleChange}
-              placeholder="usuario@ejemplo.com"
+              placeholder={t('login.emailPlaceholder')}
               error={state.errors?.email}
               autoComplete="email"
               autoFocus
             />
 
             <Input
-              label="Contrasena"
+              label={t('login.passwordLabel')}
               name="password"
               type="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="Tu contrasena"
+              placeholder={t('login.passwordPlaceholder')}
               error={state.errors?.password}
               autoComplete="current-password"
             />
+
+            {requires2FA && (
+              <Input
+                label={t('login.totpLabel', 'Codigo 2FA')}
+                name="totpCode"
+                type="text"
+                value={formData.totpCode}
+                onChange={handleChange}
+                placeholder={t('login.totpPlaceholder', '000000')}
+                autoComplete="one-time-code"
+                autoFocus
+              />
+            )}
 
             <Button
               type="submit"
@@ -148,26 +170,26 @@ export function LoginPage() {
               isLoading={isPending}
               leftIcon={<LogIn className="w-4 h-4" />}
             >
-              Iniciar Sesion
+              {t('login.submitButton')}
             </Button>
           </form>
 
           {/* Demo Credentials */}
           <div className="mt-6 pt-6 border-t border-[var(--border-default)]">
             <p className="text-xs text-[var(--text-muted)] mb-3">
-              Credenciales de prueba:
+              {t('login.testCredentials')}
             </p>
             <div className="space-y-2 text-xs">
               <div className="flex justify-between text-[var(--text-tertiary)]">
-                <span>Admin:</span>
+                <span>{t('login.admin')}</span>
                 <code className="text-[var(--primary-500)]">admin@demo.com / admin123</code>
               </div>
               <div className="flex justify-between text-[var(--text-tertiary)]">
-                <span>Manager:</span>
+                <span>{t('login.manager')}</span>
                 <code className="text-[var(--primary-500)]">manager@demo.com / manager123</code>
               </div>
               <div className="flex justify-between text-[var(--text-tertiary)]">
-                <span>Cocina:</span>
+                <span>{t('login.kitchenUser')}</span>
                 <code className="text-[var(--primary-500)]">kitchen@demo.com / kitchen123</code>
               </div>
             </div>
@@ -176,7 +198,7 @@ export function LoginPage() {
 
         {/* Footer */}
         <p className="text-center text-xs text-[var(--text-muted)] mt-6">
-          Sistema de Gestion de Restaurantes
+          {t('login.footer')}
         </p>
       </div>
     </div>

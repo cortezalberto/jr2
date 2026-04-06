@@ -374,3 +374,72 @@ def get_round(
         table_code=table.code if table else None,
         submitted_at=round_obj.submitted_at,
     )
+
+
+# =============================================================================
+# Wait Time Estimator
+# =============================================================================
+
+from pydantic import BaseModel as PydanticBaseModel
+
+
+class EstimatedWaitResponse(PydanticBaseModel):
+    """Response for estimated wait time."""
+    estimated_minutes: int
+    queue_size: int
+
+
+@router.get("/estimated-wait", response_model=EstimatedWaitResponse)
+def get_estimated_wait(
+    branch_id: int,
+    db: Session = Depends(get_db),
+) -> EstimatedWaitResponse:
+    """
+    Get estimated wait time for a branch based on current kitchen queue.
+
+    No auth required - accessible by diners via pwaMenu.
+    Logic: count rounds in SUBMITTED + IN_KITCHEN status.
+    Estimate ~10 minutes per queued round (simple heuristic), or
+    calculate from recently completed rounds if available.
+    """
+    from sqlalchemy import func as sa_func
+
+    # Count active rounds in the queue
+    queue_size = db.scalar(
+        select(sa_func.count(Round.id)).where(
+            Round.branch_id == branch_id,
+            Round.status.in_(["SUBMITTED", "IN_KITCHEN"]),
+        )
+    ) or 0
+
+    # Calculate average prep time from recently completed rounds (last 20)
+    avg_minutes = 10  # Default: 10 min per round
+    recent_completed = db.execute(
+        select(Round.submitted_at, Round.updated_at)
+        .where(
+            Round.branch_id == branch_id,
+            Round.status.in_(["READY", "SERVED"]),
+            Round.submitted_at.isnot(None),
+        )
+        .order_by(Round.updated_at.desc())
+        .limit(20)
+    ).all()
+
+    if len(recent_completed) >= 3:
+        total_minutes = 0
+        valid_count = 0
+        for submitted_at, updated_at in recent_completed:
+            if submitted_at and updated_at:
+                delta = (updated_at - submitted_at).total_seconds() / 60
+                if 0 < delta < 120:  # Sanity check: 0-120 min
+                    total_minutes += delta
+                    valid_count += 1
+        if valid_count > 0:
+            avg_minutes = int(total_minutes / valid_count)
+
+    estimated = max(1, queue_size * avg_minutes) if queue_size > 0 else 0
+
+    return EstimatedWaitResponse(
+        estimated_minutes=estimated,
+        queue_size=queue_size,
+    )

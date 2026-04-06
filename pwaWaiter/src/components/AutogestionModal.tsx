@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { comandaAPI, waiterTableAPI } from '../services/api'
 import { useTablesStore, selectTables } from '../stores/tablesStore'
+import { storeLogger } from '../utils/logger'
 import type { MenuCompact, ProductCompact, WaiterRoundItem } from '../services/api'
 import type { TableCard } from '../types'
 import { Button } from './Button'
@@ -80,7 +81,7 @@ export function AutogestionModal({ isOpen, onClose, branchId }: AutogestionModal
       }
     } catch (err) {
       setMenuError('Error al cargar el menú')
-      console.error('Failed to load menu:', err)
+      storeLogger.error('Failed to load menu', err)
     } finally {
       setIsLoadingMenu(false)
     }
@@ -110,7 +111,7 @@ export function AutogestionModal({ isOpen, onClose, branchId }: AutogestionModal
       setSessionId(response.session_id)
       setStep('take-order')
     } catch (err) {
-      console.error('Failed to activate table:', err)
+      storeLogger.error('Failed to activate table', err)
     } finally {
       setIsActivating(false)
     }
@@ -205,7 +206,7 @@ export function AutogestionModal({ isOpen, onClose, branchId }: AutogestionModal
         onClose()
       }, 1500)
     } catch (err) {
-      console.error('Failed to submit round:', err)
+      storeLogger.error('Failed to submit round', err)
     } finally {
       setIsSubmitting(false)
     }

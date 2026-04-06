@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore, selectIsAuthenticated, selectUserRoles } from '../stores/authStore'
+import { useBranchStore, selectSelectedBranchId } from '../stores/branchStore'
 import { dashboardWS } from '../services/websocket'
 
 /**
@@ -32,6 +33,7 @@ function getEndpointFromRoles(roles: string[]): 'admin' | 'kitchen' {
 export function useWebSocketConnection() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
   const roles = useAuthStore(selectUserRoles)
+  const selectedBranchId = useBranchStore(selectSelectedBranchId)
   // CRIT-04 FIX: Use ref instead of state to avoid infinite loop from callback deps
   const isConnectingRef = useRef(false)
   const mountedRef = useRef(true)
@@ -60,6 +62,16 @@ export function useWebSocketConnection() {
       mountedRef.current = false
     }
   }, [])
+
+  // CATCHUP: Set branch ID on the WebSocket service for event catch-up
+  useEffect(() => {
+    if (selectedBranchId) {
+      const numericId = parseInt(selectedBranchId, 10)
+      if (!isNaN(numericId)) {
+        dashboardWS.setBranchId(numericId)
+      }
+    }
+  }, [selectedBranchId])
 
   useEffect(() => {
     if (!isAuthenticated || roles.length === 0) {

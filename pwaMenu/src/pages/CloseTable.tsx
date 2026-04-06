@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, lazy, Suspense } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   useOrderHistoryData,
@@ -25,6 +25,8 @@ import SectionErrorBoundary from '../components/ui/SectionErrorBoundary'
 import type { SplitMethod } from '../types'
 import { dinerWS } from '../services/websocket'
 
+const FeedbackModal = lazy(() => import('../components/FeedbackModal'))
+
 interface CloseTableProps {
   onBack: () => void
 }
@@ -44,6 +46,8 @@ export default function CloseTable({ onBack }: CloseTableProps) {
   const [activeTab, setActiveTab] = useState<CloseTableTab>('summary')
   const [splitMethod, setSplitMethod] = useState<SplitMethod>('byConsumption')
   const [tipPercentage, setTipPercentage] = useState<TipPercentage>(0)
+
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   const {
     closeStatus,
@@ -109,11 +113,26 @@ export default function CloseTable({ onBack }: CloseTableProps) {
   // Paid view
   if (closeStatus === 'paid') {
     return (
-      <PaidView
-        totalConsumed={totalConsumed}
-        tableNumber={session.tableNumber}
-        onLeaveTable={handleLeaveTable}
-      />
+      <>
+        <PaidView
+          totalConsumed={totalConsumed}
+          tableNumber={session.tableNumber}
+          onLeaveTable={handleLeaveTable}
+        />
+        {!feedbackOpen && (
+          <div className="fixed bottom-24 left-0 right-0 flex justify-center z-40">
+            <button
+              onClick={() => setFeedbackOpen(true)}
+              className="px-6 py-3 rounded-full bg-orange-500 text-white font-semibold shadow-lg hover:bg-orange-600 transition-colors animate-bounce"
+            >
+              {t('feedback.leaveReview', 'Dejar opinion')}
+            </button>
+          </div>
+        )}
+        <Suspense fallback={null}>
+          <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+        </Suspense>
+      </>
     )
   }
 

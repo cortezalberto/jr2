@@ -42,7 +42,11 @@ import {
   Calendar,
   Heart,
   FileText,
+  SlidersHorizontal,
+  CalendarDays,
+  ScrollText,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useBranchStore, selectSelectedBranchId } from '../../stores/branchStore'
 import { useAuthStore } from '../../stores/authStore'
 import { getTheme, toggleTheme, type Theme } from '../../utils/theme'
@@ -100,6 +104,7 @@ const navigation: NavigationItem[] = [
           { name: 'Todas', href: '/branches', icon: List },
           { name: 'Mesas', href: '/branches/tables', icon: LayoutGrid },
           { name: 'Plan de Piso', href: '/floor-plan', icon: Map },
+          { name: 'Reservas', href: '/reservations', icon: CalendarDays },
           {
             name: 'Personal',
             icon: Users,
@@ -110,6 +115,7 @@ const navigation: NavigationItem[] = [
             ],
           },
           { name: 'Pedidos', href: '/branches/orders', icon: ShoppingCart },
+          { name: 'Delivery', href: '/delivery', icon: Truck },
         ],
       },
       {
@@ -120,6 +126,7 @@ const navigation: NavigationItem[] = [
           { name: 'Subcategorias', href: '/subcategories', icon: Layers },
           { name: 'Platos y Bebidas', href: '/products', icon: UtensilsCrossed },
           { name: 'Exclusiones', href: '/product-exclusions', icon: Ban },
+          { name: 'Personalizaciones', href: '/customizations', icon: SlidersHorizontal },
           { name: 'Alergenos', href: '/allergens', icon: AlertTriangle },
           { name: 'Insignia', href: '/badges', icon: Award },
           { name: 'Sellos', href: '/seals', icon: Shield },
@@ -157,6 +164,7 @@ const navigation: NavigationItem[] = [
     icon: BarChart3,
     children: [
       { name: 'Ventas', href: '/statistics/sales', icon: TrendingUp },
+      { name: 'Auditoria', href: '/audit-log', icon: ScrollText },
       {
         name: 'Historial',
         icon: History,
@@ -223,8 +231,57 @@ function hasActiveChild(children: (NavItem | NavSubGroup)[], pathname: string): 
   })
 }
 
+// Map navigation item names to i18n keys
+const navNameToI18nKey: Record<string, string> = {
+  'Dashboard': 'sidebar.dashboard',
+  'Restaurante': 'sidebar.restaurant',
+  'Cocina': 'sidebar.kitchen',
+  'Comandas': 'sidebar.comandas',
+  'Recetas': 'sidebar.recipes',
+  'Ingredientes': 'sidebar.ingredients',
+  'Inventario': 'sidebar.inventory',
+  'Proveedores': 'sidebar.suppliers',
+  'Gestion': 'sidebar.management',
+  'Sucursales': 'sidebar.branches',
+  'Todas': 'sidebar.allBranches',
+  'Mesas': 'sidebar.tables',
+  'Plan de Piso': 'sidebar.floorPlan',
+  'Reservas': 'sidebar.reservations',
+  'Personal': 'sidebar.staff',
+  'Datos': 'sidebar.staffData',
+  'Roles': 'sidebar.roles',
+  'Turnos': 'sidebar.scheduling',
+  'Pedidos': 'sidebar.orders',
+  'Delivery': 'sidebar.delivery',
+  'Productos': 'sidebar.products',
+  'Categorias': 'sidebar.categories',
+  'Subcategorias': 'sidebar.subcategories',
+  'Platos y Bebidas': 'sidebar.dishesAndDrinks',
+  'Exclusiones': 'sidebar.exclusions',
+  'Personalizaciones': 'sidebar.customizations',
+  'Alergenos': 'sidebar.allergens',
+  'Insignia': 'sidebar.badges',
+  'Sellos': 'sidebar.seals',
+  'Marketing': 'sidebar.marketing',
+  'Precios': 'sidebar.prices',
+  'Tipos de Promo': 'sidebar.promoTypes',
+  'Promociones': 'sidebar.promotions',
+  'Finanzas': 'sidebar.finance',
+  'Cierre de Caja': 'sidebar.cashRegister',
+  'Propinas': 'sidebar.tips',
+  'Facturacion': 'sidebar.billing',
+  'Clientes': 'sidebar.customers',
+  'CRM': 'sidebar.crm',
+  'Estadisticas': 'sidebar.statistics',
+  'Ventas': 'sidebar.sales',
+  'Auditoria': 'sidebar.auditLog',
+  'Historial': 'sidebar.history',
+  'Configuracion': 'sidebar.settings',
+}
+
 export function Sidebar() {
   const location = useLocation()
+  const { t, i18n } = useTranslation()
   const selectedBranchId = useBranchStore(selectSelectedBranchId)
   const selectedBranch = useBranchStore((state) =>
     selectedBranchId ? state.branches.find((b) => b.id === selectedBranchId) : undefined
@@ -232,6 +289,14 @@ export function Sidebar() {
   const logout = useAuthStore((s) => s.logout)
   const user = useAuthStore((s) => s.user)
   const [theme, setThemeState] = useState<Theme>(getTheme)
+
+  const currentLang = i18n.language
+
+  const handleLanguageToggle = () => {
+    const nextLang = currentLang === 'es' ? 'en' : 'es'
+    i18n.changeLanguage(nextLang)
+    localStorage.setItem('dashboard-language', nextLang)
+  }
 
   const handleToggleTheme = () => {
     const next = toggleTheme()
@@ -285,10 +350,10 @@ export function Sidebar() {
                 : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
             }`}
             aria-expanded={subIsOpen}
-            aria-label={`${subIsOpen ? 'Contraer' : 'Expandir'} ${child.name}`}
+            aria-label={`${subIsOpen ? t('sidebar.collapse') : t('sidebar.expand')} ${navNameToI18nKey[child.name] ? t(navNameToI18nKey[child.name]) : child.name}`}
           >
             <child.icon className="w-4 h-4" aria-hidden="true" />
-            <span className="text-sm font-medium flex-1 text-left">{child.name}</span>
+            <span className="text-sm font-medium flex-1 text-left">{navNameToI18nKey[child.name] ? t(navNameToI18nKey[child.name]) : child.name}</span>
             <ChevronRight
               className={`w-3 h-3 transition-transform duration-200 ${
                 subIsOpen ? 'rotate-90' : ''
@@ -320,7 +385,7 @@ export function Sidebar() {
         }
       >
         <child.icon className={`${depth > 0 ? 'w-3.5 h-3.5' : 'w-4 h-4'}`} aria-hidden="true" />
-        <span className={`${depth > 0 ? 'text-xs' : 'text-sm'} font-medium`}>{child.name}</span>
+        <span className={`${depth > 0 ? 'text-xs' : 'text-sm'} font-medium`}>{navNameToI18nKey[child.name] ? t(navNameToI18nKey[child.name]) : child.name}</span>
       </NavLink>
     )
   }
@@ -348,7 +413,7 @@ export function Sidebar() {
       {selectedBranch && (
         <div className="px-4 py-3 border-b border-[var(--border-default)] bg-gradient-to-r from-[var(--primary-500)]/10 to-transparent">
           <p className="text-xs text-[var(--text-muted)] uppercase tracking-wider font-semibold">
-            Sucursal activa
+            {t('sidebar.activeBranch')}
           </p>
           <p className="text-sm font-semibold text-[var(--primary-600)] truncate mt-0.5">
             {selectedBranch.name}
@@ -381,11 +446,11 @@ export function Sidebar() {
                       : 'text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                   }`}
                   aria-expanded={isOpen}
-                  aria-label={`${isOpen ? 'Contraer' : 'Expandir'} ${item.name}`}
-                  title={isDisabled ? 'Selecciona una sucursal para acceder' : undefined}
+                  aria-label={`${isOpen ? t('sidebar.collapse') : t('sidebar.expand')} ${navNameToI18nKey[item.name] ? t(navNameToI18nKey[item.name]) : item.name}`}
+                  title={isDisabled ? t('sidebar.selectBranchToAccess') : undefined}
                 >
                   <item.icon className="w-5 h-5" aria-hidden="true" />
-                  <span className="font-semibold flex-1 text-left">{item.name}</span>
+                  <span className="font-semibold flex-1 text-left">{navNameToI18nKey[item.name] ? t(navNameToI18nKey[item.name]) : item.name}</span>
                   <ChevronDown
                     className={`w-4 h-4 transition-transform duration-200 ${
                       isOpen ? 'rotate-180' : ''
@@ -408,10 +473,10 @@ export function Sidebar() {
               <div
                 key={item.name}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-muted)] cursor-not-allowed opacity-50"
-                title="Selecciona una sucursal para acceder"
+                title={t('sidebar.selectBranchToAccess')}
               >
                 <item.icon className="w-5 h-5" aria-hidden="true" />
-                <span className="font-semibold">{item.name}</span>
+                <span className="font-semibold">{navNameToI18nKey[item.name] ? t(navNameToI18nKey[item.name]) : item.name}</span>
               </div>
             )
           }
@@ -429,7 +494,7 @@ export function Sidebar() {
               }
             >
               <item.icon className="w-5 h-5" aria-hidden="true" />
-              <span className="font-semibold">{item.name}</span>
+              <span className="font-semibold">{navNameToI18nKey[item.name] ? t(navNameToI18nKey[item.name]) : item.name}</span>
             </NavLink>
           )
         })}
@@ -450,7 +515,7 @@ export function Sidebar() {
             }
           >
             <item.icon className="w-5 h-5" aria-hidden="true" />
-            <span className="font-semibold">{item.name}</span>
+            <span className="font-semibold">{navNameToI18nKey[item.name] ? t(navNameToI18nKey[item.name]) : item.name}</span>
           </NavLink>
         ))}
 
@@ -462,26 +527,38 @@ export function Sidebar() {
           </div>
         )}
 
+        {/* Language Toggle */}
+        <button
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150"
+          onClick={handleLanguageToggle}
+          aria-label={currentLang === 'es' ? 'Switch to English' : 'Cambiar a Español'}
+        >
+          <span className="w-5 h-5 flex items-center justify-center text-xs font-bold" aria-hidden="true">
+            {currentLang === 'es' ? 'EN' : 'ES'}
+          </span>
+          <span className="font-medium">{currentLang === 'es' ? 'English' : 'Español'}</span>
+        </button>
+
         <button
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150"
           onClick={handleToggleTheme}
-          aria-label={theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          aria-label={theme === 'dark' ? t('sidebar.switchToLight') : t('sidebar.switchToDark')}
         >
           {theme === 'dark' ? (
             <Sun className="w-5 h-5" aria-hidden="true" />
           ) : (
             <Moon className="w-5 h-5" aria-hidden="true" />
           )}
-          <span className="font-medium">{theme === 'dark' ? 'Modo Claro' : 'Modo Oscuro'}</span>
+          <span className="font-medium">{theme === 'dark' ? t('sidebar.lightMode') : t('sidebar.darkMode')}</span>
         </button>
 
         <button
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors duration-150"
           onClick={logout}
-          aria-label="Cerrar sesión"
+          aria-label={t('sidebar.logout')}
         >
           <LogOut className="w-5 h-5" aria-hidden="true" />
-          <span className="font-medium">Cerrar Sesion</span>
+          <span className="font-medium">{t('sidebar.logout')}</span>
         </button>
       </div>
     </aside>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { tablesAPI, roundsAPI, serviceCallsAPI, type DeleteRoundItemResponse } from '../services/api'
 import { wsService } from '../services/websocket'
 import { useTablesStore } from '../stores/tablesStore'
+import { storeLogger } from '../utils/logger'
 import { Button } from './Button'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FiscalInvoiceModal } from './FiscalInvoiceModal'
@@ -98,7 +99,7 @@ export function TableDetailModal({ table, isOpen, onClose }: TableDetailModalPro
       setSessionDetail(detail)
     } catch (err) {
       setError('Error al cargar detalles de la sesion')
-      console.error('Failed to load session detail:', err)
+      storeLogger.error('Failed to load session detail', err)
     } finally {
       setIsLoading(false)
     }
@@ -198,7 +199,7 @@ export function TableDetailModal({ table, isOpen, onClose }: TableDetailModalPro
       await roundsAPI.markAsServed(confirmRoundId)
       await loadSessionDetail()
     } catch (err) {
-      console.error('Failed to mark round as served:', err)
+      storeLogger.error('Failed to mark round as served', err)
     } finally {
       setIsMarkingServed(false)
       setConfirmRoundId(null)
@@ -221,7 +222,7 @@ export function TableDetailModal({ table, isOpen, onClose }: TableDetailModalPro
       await serviceCallsAPI.resolve(callId)
       // Keep button green - WS event will update pending_calls and hide the section
     } catch (err) {
-      console.error('Failed to resolve service call:', err)
+      storeLogger.error('Failed to resolve service call', err)
       // Only reset on error so user can retry
       setIsResolvingCall(false)
     }
@@ -237,7 +238,7 @@ export function TableDetailModal({ table, isOpen, onClose }: TableDetailModalPro
       await roundsAPI.confirmRound(roundId)
       await loadSessionDetail()
     } catch (err) {
-      console.error('Failed to confirm round:', err)
+      storeLogger.error('Failed to confirm round', err)
     } finally {
       setIsConfirmingRound(null)
     }
@@ -268,7 +269,7 @@ export function TableDetailModal({ table, isOpen, onClose }: TableDetailModalPro
         await loadSessionDetail()
       }
     } catch (err) {
-      console.error('Failed to delete item:', err)
+      storeLogger.error('Failed to delete item', err)
     } finally {
       setDeletingItemId(null)
       setDeleteConfirm(null)

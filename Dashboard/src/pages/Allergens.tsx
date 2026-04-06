@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useActionState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useFormModal } from '../hooks/useFormModal'
@@ -41,8 +42,9 @@ const initialFormData: AllergenFormData = {
 }
 
 export function AllergensPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Alérgenos')
+  useDocumentTitle(t('pages.allergens.title'))
 
   const allergens = useAllergenStore(selectAllergens)
   const fetchAllergens = useAllergenStore((s) => s.fetchAllergens)
@@ -108,15 +110,15 @@ export function AllergensPage() {
       try {
         if (modal.selectedItem) {
           await updateAllergenAsync(modal.selectedItem.id, data)
-          toast.success('Alergeno actualizado correctamente')
+          toast.success(t('toasts.updateSuccess', { entity: t('pages.allergens.title') }))
         } else {
           await createAllergenAsync(data)
-          toast.success('Alergeno creado correctamente')
+          toast.success(t('toasts.createSuccess', { entity: t('pages.allergens.title') }))
         }
-        return { isSuccess: true, message: 'Guardado correctamente' }
+        return { isSuccess: true, message: t('toasts.savedSuccessfully') }
       } catch (error) {
         const message = handleError(error, 'AllergensPage.submitAction')
-        toast.error(`Error al guardar el alergeno: ${message}`)
+        toast.error(t('toasts.saveError', { entity: t('pages.allergens.title').toLowerCase(), message }))
         return { isSuccess: false, message: `Error: ${message}` }
       }
     },
@@ -149,7 +151,7 @@ export function AllergensPage() {
       const result = deleteAllergenWithCascade(deleteDialog.item.id)
 
       if (!result.success) {
-        toast.error(result.error || 'Error al eliminar el alergeno')
+        toast.error(result.error || t('toasts.deleteError', { entity: t('pages.allergens.title').toLowerCase() }))
         deleteDialog.close()
         return
       }
@@ -163,11 +165,11 @@ export function AllergensPage() {
         )
       }
 
-      toast.success('Alergeno eliminado correctamente')
+      toast.success(t('toasts.deleteSuccess', { entity: t('pages.allergens.title') }))
       deleteDialog.close()
     } catch (error) {
       const message = handleError(error, 'AllergensPage.handleDelete')
-      toast.error(`Error al eliminar el alergeno: ${message}`)
+      toast.error(t('toasts.deleteError', { entity: t('pages.allergens.title').toLowerCase() }) + `: ${message}`)
     }
   }, [deleteDialog, getProductCount, deleteAllergenAsync])
 
@@ -175,7 +177,7 @@ export function AllergensPage() {
     () => [
       {
         key: 'icon',
-        label: 'Icono',
+        label: t('pages.allergens.icon'),
         width: 'w-16',
         render: (item) => (
           <span className="text-2xl" aria-label={`Icono de ${item.name}`}>
@@ -185,12 +187,12 @@ export function AllergensPage() {
       },
       {
         key: 'name',
-        label: 'Nombre',
+        label: t('common.name'),
         render: (item) => <span className="font-medium">{item.name}</span>,
       },
       {
         key: 'description',
-        label: 'Descripcion',
+        label: t('common.description'),
         render: (item) => (
           <span className="text-[var(--text-muted)] text-sm">
             {item.description || '-'}
@@ -199,31 +201,31 @@ export function AllergensPage() {
       },
       {
         key: 'is_active',
-        label: 'Estado',
+        label: t('common.status'),
         width: 'w-24',
         render: (item) =>
           item.is_active !== false ? (
             <Badge variant="success">
-              <span className="sr-only">Estado:</span> Activo
+              <span className="sr-only">{t('common.status')}:</span> {t('status.active')}
             </Badge>
           ) : (
             <Badge variant="danger">
-              <span className="sr-only">Estado:</span> Inactivo
+              <span className="sr-only">{t('common.status')}:</span> {t('status.inactive')}
             </Badge>
           ),
       },
       {
         key: 'products',
-        label: 'Productos',
+        label: t('pages.products.title'),
         width: 'w-28',
         render: (item) => {
           const count = getProductCount(item.id)
-          return <span className="text-[var(--text-muted)]">{count} productos</span>
+          return <span className="text-[var(--text-muted)]">{count} {t('pages.subcategories.productsCount')}</span>
         },
       },
       {
         key: 'actions',
-        label: 'Acciones',
+        label: t('common.actions'),
         width: 'w-28',
         render: (item) => (
           <div className="flex items-center gap-1">
@@ -263,13 +265,13 @@ export function AllergensPage() {
 
   return (
     <PageContainer
-      title="Alergenos"
-      description="Administra los alergenos para los productos del menu"
+      title={t('pages.allergens.title')}
+      description={t('pages.allergens.description')}
       helpContent={helpContent.allergens}
       actions={
         canCreate ? (
           <Button onClick={() => modal.openCreate()} leftIcon={<Plus className="w-4 h-4" />}>
-            Nuevo Alergeno
+            {t('pages.allergens.newAllergen')}
           </Button>
         ) : undefined
       }
@@ -278,7 +280,7 @@ export function AllergensPage() {
         <Table
           data={paginatedAllergens}
           columns={columns}
-          emptyMessage="No hay alergenos. Crea uno para comenzar."
+          emptyMessage={t('pages.allergens.noAllergens')}
           ariaLabel="Lista de alergenos"
         />
         <Pagination
@@ -294,15 +296,15 @@ export function AllergensPage() {
       <Modal
         isOpen={modal.isOpen}
         onClose={modal.close}
-        title={modal.selectedItem ? 'Editar Alergeno' : 'Nuevo Alergeno'}
+        title={modal.selectedItem ? t('pages.allergens.editAllergen') : t('pages.allergens.newAllergen')}
         size="md"
         footer={
           <>
             <Button variant="ghost" onClick={modal.close}>
-              Cancelar
+              {t('common.cancel')}
             </Button>
             <Button type="submit" form="allergen-form" isLoading={isPending}>
-              {modal.selectedItem ? 'Guardar' : 'Crear'}
+              {modal.selectedItem ? t('common.save') : t('common.create')}
             </Button>
           </>
         }
@@ -310,7 +312,7 @@ export function AllergensPage() {
         <form id="allergen-form" action={formAction} className="space-y-4">
           <div className="flex items-center gap-2 mb-2">
             <HelpButton
-              title="Formulario de Alergeno"
+              title={t('pages.allergens.formTitle')}
               size="sm"
               content={
                 <div className="space-y-3">
@@ -340,11 +342,11 @@ export function AllergensPage() {
                 </div>
               }
             />
-            <span className="text-sm text-[var(--text-tertiary)]">Ayuda sobre el formulario</span>
+            <span className="text-sm text-[var(--text-tertiary)]">{t('common.formHelp')}</span>
           </div>
 
           <Input
-            label="Nombre"
+            label={t('common.name')}
             name="name"
             value={modal.formData.name}
             onChange={(e) =>
@@ -355,7 +357,7 @@ export function AllergensPage() {
           />
 
           <Input
-            label="Icono (emoji)"
+            label={t('pages.allergens.icon')}
             name="icon"
             value={modal.formData.icon}
             onChange={(e) =>
@@ -365,7 +367,7 @@ export function AllergensPage() {
           />
 
           <Input
-            label="Descripcion"
+            label={t('common.description')}
             name="description"
             value={modal.formData.description}
             onChange={(e) =>
@@ -375,7 +377,7 @@ export function AllergensPage() {
           />
 
           <Toggle
-            label="Alergeno activo"
+            label={t('pages.allergens.activeToggle')}
             name="is_active"
             checked={modal.formData.is_active}
             onChange={(e) =>
@@ -391,9 +393,9 @@ export function AllergensPage() {
         isOpen={deleteDialog.isOpen}
         onClose={deleteDialog.close}
         onConfirm={handleDelete}
-        title="Eliminar Alergeno"
+        title={t('pages.allergens.deleteAllergen')}
         message={`¿Estas seguro de eliminar "${deleteDialog.item?.name}"?`}
-        confirmLabel="Eliminar"
+        confirmLabel={t('common.delete')}
       >
         {deleteDialog.item && (() => {
           const preview = getAllergenPreview(deleteDialog.item.id)

@@ -164,6 +164,8 @@ export type WSEventType =
   | 'ROUND_SERVED'
   /** Item deleted from a round (only for PENDING/CONFIRMED rounds) */
   | 'ROUND_ITEM_DELETED'
+  /** Item voided from a submitted/in-kitchen round */
+  | 'ROUND_ITEM_VOIDED'
   /** Diner pressed the "call waiter" button */
   | 'SERVICE_CALL_CREATED'
   /** Waiter acknowledged the service call */

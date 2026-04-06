@@ -8,6 +8,7 @@ import { validateEnv, logEnvConfig } from './config/env'
 
 // PWA: Register service worker
 import { registerSW } from 'virtual:pwa-register'
+import { logger } from './utils/logger'
 
 // i18n initialization (must run before React render)
 import './i18n'
@@ -29,7 +30,7 @@ const updateSW = registerSW({
     updateSW(true)
   },
   onOfflineReady() {
-    console.log('App ready to work offline')
+    logger.info('PWA', 'App ready to work offline')
   },
 })
 

@@ -60,6 +60,13 @@ class Settings(BaseSettings):
     # Base URL for payment redirects
     base_url: str = "http://localhost:5176"
 
+    # SMTP (optional — email is no-op if not configured)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+
     # Environment
     environment: str = "development"
     debug: bool = True

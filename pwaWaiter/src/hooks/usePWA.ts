@@ -1,6 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 // @ts-ignore - virtual module
 import { useRegisterSW } from 'virtual:pwa-register/react'
+import { storeLogger } from '../utils/logger'
+
+// Non-standard browser API types
+interface BeforeInstallPromptEvent extends Event {
+    prompt(): Promise<void>
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+}
+
+interface NavigatorStandalone extends Navigator {
+    standalone?: boolean
+}
 
 interface PWAState {
     needRefresh: boolean
@@ -14,7 +25,7 @@ interface PWAState {
 export function usePWA(): PWAState {
     const [canInstall, setCanInstall] = useState(false)
     const [isInstalled, setIsInstalled] = useState(false)
-    const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
+    const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
 
     // Use vite-plugin-pwa hook for updates
     const {
@@ -22,8 +33,8 @@ export function usePWA(): PWAState {
         needRefresh: [needRefresh],
         updateServiceWorker,
     } = useRegisterSW({
-        onRegisterError(error: any) {
-            console.error('SW registration error', error)
+        onRegisterError(error: unknown) {
+            storeLogger.error('SW registration error', error)
         },
     })
 
@@ -31,7 +42,7 @@ export function usePWA(): PWAState {
     useEffect(() => {
         const isStandalone =
             window.matchMedia('(display-mode: standalone)').matches ||
-            (window.navigator as any).standalone === true
+            (window.navigator as NavigatorStandalone).standalone === true
 
         setIsInstalled(isStandalone)
 
@@ -46,7 +57,7 @@ export function usePWA(): PWAState {
     useEffect(() => {
         const handleBeforeInstallPrompt = (e: Event) => {
             e.preventDefault()
-            setDeferredPrompt(e)
+            setDeferredPrompt(e as BeforeInstallPromptEvent)
             setCanInstall(true)
         }
 

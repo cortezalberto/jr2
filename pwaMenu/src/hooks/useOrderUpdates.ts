@@ -7,6 +7,7 @@
 import { useEffect, useRef } from 'react'
 import { dinerWS } from '../services/websocket'
 import { useTableStore } from '../stores/tableStore'
+import { useMenuStore } from '../stores/menuStore'
 import type { WSEvent, WSEventType } from '../types/backend'
 import type { OrderStatus, OrderRecord } from '../types'
 import { orderUpdatesLogger } from '../utils/logger'
@@ -165,11 +166,20 @@ export function useOrderUpdates() {
       playEventSoundIfEnabled('order_confirmed')
     }
 
+    // Handler for product availability changes (real-time "Agotado" badge)
+    const handleProductAvailability = (event: WSEvent) => {
+      const entity = event.entity as { product_id?: number; is_available?: boolean }
+      if (entity.product_id != null && entity.is_available != null) {
+        orderUpdatesLogger.info(`Product ${entity.product_id} availability changed: ${entity.is_available}`)
+        useMenuStore.getState().updateProductAvailability(entity.product_id, entity.is_available)
+      }
+    }
+
     // WS-MED-02 FIX: Handler for unhandled events only (debugging)
     // Filter out already-handled event types to avoid double-processing
     const handledEventTypes = new Set([
       'ROUND_SUBMITTED', 'ROUND_IN_KITCHEN', 'ROUND_READY', 'ROUND_SERVED',
-      'TABLE_CLEARED', 'CHECK_PAID', 'ROUND_ITEM_DELETED'
+      'TABLE_CLEARED', 'CHECK_PAID', 'ROUND_ITEM_DELETED', 'PRODUCT_AVAILABILITY_CHANGED'
     ])
     const handleUnhandledEvents = (event: WSEvent) => {
       // WS-MED-02 FIX: Only log events not already handled by specific listeners
@@ -186,6 +196,7 @@ export function useOrderUpdates() {
     const unsubscribeCleared = dinerWS.on('TABLE_CLEARED', handleTableCleared)
     const unsubscribeCheckPaid = dinerWS.on('CHECK_PAID', handleCheckPaid)
     const unsubscribeItemDeleted = dinerWS.on('ROUND_ITEM_DELETED', handleItemDeleted)
+    const unsubscribeAvailability = dinerWS.on('PRODUCT_AVAILABILITY_CHANGED', handleProductAvailability)
     // WS-MED-02 FIX: Wildcard listener now filters to avoid double-processing
     const unsubscribeAll = dinerWS.on('*', handleUnhandledEvents)
 
@@ -199,6 +210,7 @@ export function useOrderUpdates() {
         unsubscribeCleared()
         unsubscribeCheckPaid()
         unsubscribeItemDeleted()
+        unsubscribeAvailability()
         unsubscribeAll()
       })
     }
@@ -211,6 +223,7 @@ export function useOrderUpdates() {
       unsubscribeCleared()
       unsubscribeCheckPaid()
       unsubscribeItemDeleted()
+      unsubscribeAvailability()
       unsubscribeAll()
     }
   }, []) // MENU-CRIT-01 FIX: Empty deps - subscribe only once, use refs for latest values

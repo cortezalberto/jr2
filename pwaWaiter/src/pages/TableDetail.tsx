@@ -3,6 +3,7 @@ import { useTablesStore, selectSelectedTable } from '../stores/tablesStore'
 import { useAuthStore, selectUser } from '../stores/authStore'
 import { tablesAPI, roundsAPI, serviceCallsAPI } from '../services/api'
 import { wsService } from '../services/websocket'
+import { storeLogger } from '../utils/logger'
 import { Header } from '../components/Header'
 import { Button } from '../components/Button'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -68,7 +69,7 @@ export function TableDetailPage({ onBack }: TableDetailPageProps) {
       setSessionDetail(detail)
     } catch (err) {
       setError('Error al cargar detalles de la sesion')
-      console.error('Failed to load session detail:', err)
+      storeLogger.error('Failed to load session detail', err)
     } finally {
       setIsLoading(false)
     }
@@ -137,7 +138,7 @@ export function TableDetailPage({ onBack }: TableDetailPageProps) {
       // Reload session detail to update UI
       await loadSessionDetail()
     } catch (err) {
-      console.error('Failed to mark round as served:', err)
+      storeLogger.error('Failed to mark round as served', err)
     } finally {
       setIsMarkingServed(false)
       setConfirmRoundId(null)
@@ -158,7 +159,7 @@ export function TableDetailPage({ onBack }: TableDetailPageProps) {
       // The WebSocket event SERVICE_CALL_CLOSED will update the state
       // and reload session detail automatically
     } catch (err) {
-      console.error('Failed to resolve service call:', err)
+      storeLogger.error('Failed to resolve service call', err)
     } finally {
       setIsResolvingCall(false)
     }

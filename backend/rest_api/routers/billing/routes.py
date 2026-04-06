@@ -9,10 +9,6 @@ REC-02 FIX: Failed webhooks are queued for retry.
 
 from datetime import datetime, timezone
 from typing import Any
-import hashlib
-import hmac
-import httpx
-import json
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.orm import Session
@@ -40,6 +36,8 @@ from rest_api.services.payments.circuit_breaker import (
     CircuitBreakerError,
 )
 from rest_api.services.payments.webhook_retry import webhook_retry_queue
+from rest_api.services.payments.gateway import PaymentGateway, PaymentPreference
+from rest_api.services.payments.mercadopago_gateway import MercadoPagoGateway
 from shared.security.auth import current_user_context, current_table_context, require_roles
 from shared.utils.schemas import (
     RequestCheckResponse,
@@ -72,6 +70,11 @@ from rest_api.services.domain.billing_service import (
     CheckNotFoundError,
     CheckAlreadyExistsError,
 )
+
+
+def _get_payment_gateway() -> PaymentGateway:
+    """Factory for payment gateway. Swap implementation here for testing or new providers."""
+    return MercadoPagoGateway()
 
 
 router = APIRouter(prefix="/api/billing", tags=["billing"])
@@ -450,6 +453,24 @@ async def clear_table(
     session.closed_at = datetime.now(timezone.utc)
     table.status = "FREE"
 
+    # OUTBOX-PATTERN: Write TABLE_CLEARED event atomically with business data
+    # Guarantees delivery even if Redis is temporarily down
+    write_billing_outbox_event(
+        db=db,
+        tenant_id=table.tenant_id,
+        event_type=TABLE_CLEARED,
+        check_id=check.id if check else 0,
+        branch_id=table.branch_id,
+        session_id=session.id,
+        table_id=table_id,
+        extra_data={
+            "table_code": table.code,
+            "sector_id": table.sector_id,
+        },
+        actor_user_id=int(ctx["sub"]),
+        actor_role="WAITER",
+    )
+
     # AUDIT FIX: Wrap commit in try-except to handle DB errors
     try:
         db.commit()
@@ -461,26 +482,7 @@ async def clear_table(
             detail="Failed to clear table - please try again",
         )
 
-    # HIGH-02 FIX: Publish event to waiters and admin channels
-    # QA-BACK-HIGH-02 FIX: Include sector_id for sector-based waiter notifications
-    redis = None
-    try:
-        redis = await get_redis_client()
-        event = Event(
-            type=TABLE_CLEARED,
-            tenant_id=table.tenant_id,
-            branch_id=table.branch_id,
-            table_id=table_id,
-            session_id=session.id,
-            sector_id=table.sector_id,  # QA-BACK-HIGH-02 FIX
-            entity={"table_code": table.code},
-            actor={"user_id": int(ctx["sub"]), "role": "WAITER"},
-        )
-        await publish_to_waiters(redis, table.branch_id, event)
-        await publish_to_admin(redis, table.branch_id, event)  # HIGH-02 FIX: Notify admin/dashboard
-    except Exception as e:
-        logger.error("Failed to publish TABLE_CLEARED event", table_id=table_id, error=str(e))
-    # Note: Don't close pooled Redis connection - pool manages lifecycle
+    # Note: Event publishing is now handled by outbox processor (guaranteed delivery)
 
     # SEC-AUDIT-03: Log table clearing to tamper-evident audit chain
     try:
@@ -665,50 +667,32 @@ async def create_mercadopago_preference(
 
     table_code = table.code if table else f"Mesa #{session_id}"
 
-    # Create Mercado Pago preference
-    preference_data = {
-        "items": [
-            {
-                "title": f"Cuenta {table_code}",
-                "description": f"Pago de cuenta - {table_code}",
-                "quantity": 1,
-                "currency_id": "ARS",
-                # HIGH-BILLING-02 FIX: Use integer division to avoid float precision issues
-                # Mercado Pago accepts float, but we ensure exact cents conversion
-                "unit_price": round(remaining_cents / 100, 2),  # Convert cents to pesos with 2 decimal precision
-            }
-        ],
-        "external_reference": f"check_{check.id}",
-        "back_urls": {
+    # Build preference using gateway abstraction
+    gateway = _get_payment_gateway()
+    preference = PaymentPreference(
+        title=f"Cuenta {table_code}",
+        amount_cents=remaining_cents,
+        currency="ARS",
+        external_reference=f"check_{check.id}",
+        back_urls={
             "success": f"{settings.base_url}/payment/success?check_id={check.id}",
             "failure": f"{settings.base_url}/payment/failure?check_id={check.id}",
             "pending": f"{settings.base_url}/payment/pending?check_id={check.id}",
         },
-        "auto_return": "approved",
-        "notification_url": settings.mercadopago_notification_url or f"{settings.base_url}/api/billing/mercadopago/webhook",
-    }
+        notification_url=settings.mercadopago_notification_url or f"{settings.base_url}/api/billing/mercadopago/webhook",
+    )
 
     # REC-01 FIX: Use circuit breaker to prevent cascading failures
     try:
         async with mercadopago_breaker.call():
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    "https://api.mercadopago.com/checkout/preferences",
-                    headers={
-                        "Authorization": f"Bearer {settings.mercadopago_access_token}",
-                        "Content-Type": "application/json",
-                    },
-                    json=preference_data,
+            result = await gateway.create_preference(preference)
+
+            if not result.success:
+                logger.error("Payment preference creation failed", error=result.error_message)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail="Failed to create payment preference",
                 )
-
-                if response.status_code != 201:
-                    logger.error("Mercado Pago preference creation failed", status_code=response.status_code, response=response.text)
-                    raise HTTPException(
-                        status_code=status.HTTP_502_BAD_GATEWAY,
-                        detail="Failed to create Mercado Pago preference",
-                    )
-
-                mp_response = response.json()
     except CircuitBreakerError as e:
         logger.warning("Mercado Pago circuit breaker open", retry_after=e.retry_after)
         raise HTTPException(
@@ -725,7 +709,7 @@ async def create_mercadopago_preference(
         provider="MERCADO_PAGO",
         status="PENDING",
         amount_cents=remaining_cents,
-        external_id=mp_response.get("id"),
+        external_id=result.external_id,
     )
     db.add(payment)
 
@@ -741,66 +725,10 @@ async def create_mercadopago_preference(
         )
 
     return MercadoPagoPreferenceResponse(
-        preference_id=mp_response["id"],
-        init_point=mp_response["init_point"],
-        sandbox_init_point=mp_response.get("sandbox_init_point", mp_response["init_point"]),
+        preference_id=result.external_id or "",
+        init_point=result.redirect_url or "",
+        sandbox_init_point=result.redirect_url or "",
     )
-
-
-def _verify_mp_webhook_signature(
-    x_signature: str | None,
-    x_request_id: str | None,
-    data_id: str,
-) -> bool:
-    """
-    BACK-CRIT-05 FIX: Verify Mercado Pago webhook signature.
-
-    Mercado Pago sends:
-    - x-signature header: "ts=timestamp,v1=signature"
-    - x-request-id header
-
-    We compute HMAC-SHA256 of "id:{data_id};request-id:{x_request_id};ts:{ts};"
-    using the webhook secret and compare with v1.
-    """
-    if not settings.mercadopago_webhook_secret:
-        # If secret not configured, skip verification (development mode)
-        logger.warn("MP webhook signature verification skipped - no secret configured")
-        return True
-
-    if not x_signature or not x_request_id:
-        logger.warn("MP webhook missing signature headers")
-        return False
-
-    # Parse x-signature header
-    parts = {}
-    for part in x_signature.split(","):
-        if "=" in part:
-            key, value = part.split("=", 1)
-            parts[key] = value
-
-    ts = parts.get("ts")
-    v1 = parts.get("v1")
-
-    if not ts or not v1:
-        logger.warn("MP webhook signature malformed", x_signature=x_signature)
-        return False
-
-    # Build manifest string as per MP documentation
-    manifest = f"id:{data_id};request-id:{x_request_id};ts:{ts};"
-
-    # Compute expected signature
-    expected_signature = hmac.new(
-        settings.mercadopago_webhook_secret.encode(),
-        manifest.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-    # Compare signatures
-    if not hmac.compare_digest(expected_signature, v1):
-        logger.warn("MP webhook signature mismatch", expected=expected_signature[:8], received=v1[:8])
-        return False
-
-    return True
 
 
 @router.post("/mercadopago/webhook")
@@ -814,17 +742,22 @@ async def mercadopago_webhook(
     Webhook endpoint for Mercado Pago notifications.
 
     Called by Mercado Pago when a payment status changes.
-    Verifies signature, updates payment and check status.
+    Verifies signature via PaymentGateway, updates payment and check status.
     """
+    gateway = _get_payment_gateway()
+
     # Get webhook data
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    # BACK-CRIT-05 FIX: Verify webhook signature
+    # BACK-CRIT-05 FIX: Verify webhook signature via gateway abstraction
     data_id = str(body.get("data", {}).get("id", ""))
-    if not _verify_mp_webhook_signature(x_signature, x_request_id, data_id):
+    if not settings.mercadopago_webhook_secret:
+        # If secret not configured, skip verification (development mode)
+        logger.warn("MP webhook signature verification skipped - no secret configured")
+    elif not gateway.verify_webhook_signature(x_signature or "", x_request_id or "", data_id):
         raise HTTPException(status_code=401, detail="Invalid webhook signature")
 
     # Log webhook for debugging
@@ -838,36 +771,29 @@ async def mercadopago_webhook(
     if not payment_id:
         return {"status": "ignored", "reason": "no payment id"}
 
-    # Fetch payment details from Mercado Pago
+    # Fetch payment details via gateway with circuit breaker
     if not settings.mercadopago_access_token:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Mercado Pago is not configured",
         )
 
-    # REC-01 FIX: Use circuit breaker for fetching payment details
+    # REC-01 FIX: Use circuit breaker for fetching payment details via gateway
     # REC-02 FIX: Queue for retry on failure
     try:
         async with mercadopago_breaker.call():
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.get(
-                    f"https://api.mercadopago.com/v1/payments/{payment_id}",
-                    headers={
-                        "Authorization": f"Bearer {settings.mercadopago_access_token}",
-                    },
+            verify_result = await gateway.verify_payment(str(payment_id))
+
+            if verify_result.status == "unknown" and verify_result.error_message:
+                logger.error("Failed to fetch MP payment", payment_id=payment_id, error=verify_result.error_message)
+                # REC-02 FIX: Queue for retry instead of failing immediately
+                await webhook_retry_queue.enqueue(
+                    webhook_type="mercadopago",
+                    payload=body,
+                    error=f"Failed to fetch payment: {verify_result.error_message}",
                 )
+                return {"status": "queued_for_retry", "reason": "failed to fetch payment details"}
 
-                if response.status_code != 200:
-                    logger.error("Failed to fetch MP payment", payment_id=payment_id, status_code=response.status_code)
-                    # REC-02 FIX: Queue for retry instead of failing immediately
-                    await webhook_retry_queue.enqueue(
-                        webhook_type="mercadopago",
-                        payload=body,
-                        error=f"Failed to fetch payment: HTTP {response.status_code}",
-                    )
-                    return {"status": "queued_for_retry", "reason": "failed to fetch payment details"}
-
-                mp_payment = response.json()
     except CircuitBreakerError as e:
         logger.warning("MP webhook: circuit breaker open, queueing for retry", retry_after=e.retry_after)
         # REC-02 FIX: Queue webhook for retry when circuit is open
@@ -887,8 +813,9 @@ async def mercadopago_webhook(
         )
         return {"status": "queued_for_retry", "reason": "unexpected error"}
 
-    # Extract check_id from external_reference
-    external_ref = mp_payment.get("external_reference", "")
+    # Extract check_id from external_reference returned by gateway
+    mp_status = verify_result.status
+    external_ref = verify_result.external_reference or ""
     if not external_ref.startswith("check_"):
         return {"status": "ignored", "reason": "unknown external reference"}
 
@@ -908,7 +835,7 @@ async def mercadopago_webhook(
         select(Payment).where(
             Payment.check_id == check_id,
             Payment.provider == "MERCADO_PAGO",
-            Payment.external_id == str(mp_payment.get("preference_id")),
+            Payment.external_id == str(verify_result.external_id or ""),
         ).with_for_update()
     )
 
@@ -920,16 +847,15 @@ async def mercadopago_webhook(
             check_id=check.id,
             provider="MERCADO_PAGO",
             status="PENDING",
-            amount_cents=int(mp_payment.get("transaction_amount", 0) * 100),
+            amount_cents=verify_result.amount_cents or 0,
             external_id=str(payment_id),
         )
         db.add(payment)
 
-    # Update payment status based on MP status
-    mp_status = mp_payment.get("status")
+    # Update payment status based on gateway result
     if mp_status == "approved":
         payment.status = "APPROVED"
-        payment.amount_cents = int(mp_payment.get("transaction_amount", 0) * 100)
+        payment.amount_cents = verify_result.amount_cents or 0
 
         # Flush to get payment ID before allocating
         db.flush()
@@ -995,7 +921,7 @@ async def mercadopago_webhook(
             table_id=table_id,
             extra_data={
                 "payment_id": payment.id,
-                "reason": mp_payment.get("status_detail", "unknown"),
+                "reason": verify_result.status_detail or "unknown",
             },
             actor_role="SYSTEM",
         )
@@ -1028,8 +954,8 @@ async def mercadopago_webhook(
                 "amount_cents": payment.amount_cents,
                 "provider": "MERCADO_PAGO",
                 "mp_status": mp_status,
-                "mp_status_detail": mp_payment.get("status_detail"),
-                "mp_payment_id": mp_payment_id,
+                "mp_status_detail": verify_result.status_detail,
+                "mp_payment_id": payment_id,
                 "check_status": check.status,
                 "check_paid_cents": check.paid_cents,
                 "check_total_cents": check.total_cents,

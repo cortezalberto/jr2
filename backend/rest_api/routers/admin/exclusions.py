@@ -17,6 +17,7 @@ from shared.utils.admin_schemas import (
     ExclusionOverview, CategoryExclusionSummary, SubcategoryExclusionSummary,
     ExclusionBulkUpdate,
 )
+from shared.infrastructure.cache.menu_cache import invalidate_all_menu_caches
 
 
 router = APIRouter(tags=["admin-exclusions"])
@@ -193,6 +194,9 @@ def update_category_exclusions(
 
     db.commit()
 
+    # Exclusions change which categories appear in branch menus
+    invalidate_all_menu_caches()
+
     return CategoryExclusionSummary(
         category_id=category.id,
         category_name=category.name,
@@ -300,6 +304,9 @@ def update_subcategory_exclusions(
         db.add(exclusion)
 
     db.commit()
+
+    # Exclusions change which subcategories appear in branch menus
+    invalidate_all_menu_caches()
 
     return SubcategoryExclusionSummary(
         subcategory_id=subcategory.id,

@@ -89,7 +89,9 @@
     "add": "Agregar",
     "adding": "Agregando...",
     "added": "Agregado",
-    "addedToCart": "{{quantity}} {{product}} agregado al carrito"
+    "addedToCart": "{{quantity}} {{product}} agregado al carrito",
+    "soldOut": "Agotado",
+    "unavailableMessage": "Este producto no está disponible en este momento"
   },
   "bottomNav": {
     "mainNav": "Navegación principal",
@@ -102,7 +104,8 @@
     "round_plural": "rondas",
     "noOrders": "Sin pedidos",
     "askForBill": "Pedir la cuenta",
-    "aiAssistant": "Consultar con IA sobre la carta"
+    "aiAssistant": "Consultar con IA sobre la carta",
+    "estimatedWait": "Tiempo estimado"
   },
   "orderSuccess": {
     "orderSent": "¡Pedido enviado!",
@@ -122,6 +125,7 @@
     "totalConsumed": "Total consumido",
     "itemsInRounds": "{{items}} items en {{rounds}} {{roundWord}}",
     "close": "Cerrar historial",
+    "reorder": "Repetir pedido",
     "status": {
       "submitted": "Enviado",
       "confirmed": "Confirmado",
@@ -144,7 +148,12 @@
   "menu": {
     "title": "Menú",
     "selectLanguage": "Seleccionar idioma",
-    "languageHelp": "Podés cambiar el idioma en cualquier momento"
+    "languageHelp": "Podés cambiar el idioma en cualquier momento",
+    "appearance": "Apariencia",
+    "lightMode": "Modo Claro",
+    "darkMode": "Modo Oscuro",
+    "switchToLight": "Cambiar a modo claro",
+    "switchToDark": "Cambiar a modo oscuro"
   },
   "closeTable": {
     "title": "Pedir la cuenta",
@@ -497,5 +506,17 @@
     "pendingNote": "Recibirás una notificación cuando se confirme el pago",
     "retry": "Intentar de nuevo",
     "cancel": "Cancelar y volver"
+  },
+  "feedback": {
+    "title": "Tu opinion nos importa",
+    "selectRating": "Selecciona una calificacion",
+    "stars": "estrellas",
+    "commentPlaceholder": "Comentario opcional...",
+    "submit": "Enviar opinion",
+    "sending": "Enviando...",
+    "thanks": "Gracias por tu opinion!",
+    "close": "Cerrar",
+    "error": "No se pudo enviar. Intenta de nuevo.",
+    "leaveReview": "Dejar opinion"
   }
 }

@@ -15,9 +15,6 @@ Usage:
     from rest_api.services.domain import CategoryService
     service = CategoryService(db)
     categories = service.list_by_branch(tenant_id, branch_id)
-
-    # DEPRECATED: CRUDFactory (will be removed in future version)
-    from rest_api.services.crud import CRUDFactory  # Use domain services instead
 """
 
 # RAG Service (most commonly used)
@@ -33,8 +30,6 @@ from .payments import (
 
 # CRUD utilities (commonly used in admin routers)
 from .crud import (
-    CRUDFactory,
-    CRUDConfig,
     EntityOutputBuilder,
     build_output,
     soft_delete,
@@ -121,8 +116,6 @@ __all__ = [
     "webhook_retry_queue",
     "handle_mp_webhook_retry",
     # CRUD
-    "CRUDFactory",
-    "CRUDConfig",
     "EntityOutputBuilder",
     "build_output",
     "soft_delete",

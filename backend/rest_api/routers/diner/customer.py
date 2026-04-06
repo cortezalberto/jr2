@@ -101,7 +101,7 @@ def register_customer(
             Customer.tenant_id == tenant_id,
             Customer.device_ids.contains(body.device_id),
         )
-        .with_for_update(skip_locked=True)  # Skip if locked by another transaction
+        .with_for_update()  # Block if locked by another transaction (prevents duplicate registration)
     )
 
     if existing_device_ids:
@@ -116,7 +116,7 @@ def register_customer(
                 Customer.tenant_id == tenant_id,
                 Customer.phone == body.phone,
             )
-            .with_for_update(skip_locked=True)
+            .with_for_update()
         )
         if existing_phone:
             # HIGH-COMMIT-01 FIX: Add device_id to existing customer with proper error handling
@@ -143,7 +143,7 @@ def register_customer(
                 Customer.tenant_id == tenant_id,
                 Customer.email == body.email,
             )
-            .with_for_update(skip_locked=True)
+            .with_for_update()
         )
         if existing_email:
             # HIGH-COMMIT-02 FIX: Add device_id to existing customer with proper error handling

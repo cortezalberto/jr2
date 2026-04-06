@@ -60,6 +60,7 @@ def get_audit_log(
     return [
         AuditLogOutput(
             id=entry.id,
+            tenant_id=entry.tenant_id,
             user_id=entry.user_id,
             user_email=entry.user_email,
             entity_type=entry.entity_type,
@@ -67,7 +68,6 @@ def get_audit_log(
             action=entry.action,
             old_values=entry.old_values,
             new_values=entry.new_values,
-            changes=entry.changes,
             ip_address=entry.ip_address,
             created_at=entry.created_at,
         )

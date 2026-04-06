@@ -1,10 +1,16 @@
 """Web Push notification management for waiters."""
+import json
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from shared.infrastructure.db import get_db, safe_commit
+from shared.infrastructure.events import get_redis_sync_client
 from shared.security.auth import current_user_context
+from shared.config.logging import get_logger
+
+logger = get_logger("waiter-notifications")
 
 router = APIRouter(prefix="/api/waiter/notifications", tags=["waiter-notifications"])
 
@@ -14,8 +20,9 @@ class PushSubscription(BaseModel):
     keys: dict  # {p256dh: str, auth: str}
 
 
-# In-memory store for dev (should be Redis or DB in production)
-_subscriptions: dict[int, list[dict]] = {}
+def _subscription_key(user_id: int) -> str:
+    """Redis key for push subscriptions."""
+    return f"push:subscriptions:{user_id}"
 
 
 @router.post("/subscribe")
@@ -25,13 +32,15 @@ def subscribe_push(
 ):
     """Register push subscription for waiter."""
     user_id = int(user["sub"])
-    if user_id not in _subscriptions:
-        _subscriptions[user_id] = []
+    sub_data = json.dumps({"endpoint": body.endpoint, "keys": body.keys}, sort_keys=True)
 
-    # Avoid duplicates
-    sub_data = {"endpoint": body.endpoint, "keys": body.keys}
-    if sub_data not in _subscriptions[user_id]:
-        _subscriptions[user_id].append(sub_data)
+    try:
+        redis = get_redis_sync_client()
+        redis.sadd(_subscription_key(user_id), sub_data)
+    except Exception as e:
+        logger.error("Failed to save push subscription to Redis", user_id=user_id, error=str(e))
+        # Fail open — don't break the endpoint if Redis is down
+        return {"status": "error", "detail": "Failed to persist subscription"}
 
     return {"status": "subscribed"}
 
@@ -43,12 +52,23 @@ def unsubscribe_push(
 ):
     """Remove push subscription."""
     user_id = int(user["sub"])
-    sub_data = {"endpoint": body.endpoint, "keys": body.keys}
-    if user_id in _subscriptions:
-        _subscriptions[user_id] = [s for s in _subscriptions[user_id] if s != sub_data]
+    sub_data = json.dumps({"endpoint": body.endpoint, "keys": body.keys}, sort_keys=True)
+
+    try:
+        redis = get_redis_sync_client()
+        redis.srem(_subscription_key(user_id), sub_data)
+    except Exception as e:
+        logger.error("Failed to remove push subscription from Redis", user_id=user_id, error=str(e))
+
     return {"status": "unsubscribed"}
 
 
 def get_subscriptions(user_id: int) -> list[dict]:
     """Get all push subscriptions for a user."""
-    return _subscriptions.get(user_id, [])
+    try:
+        redis = get_redis_sync_client()
+        members = redis.smembers(_subscription_key(user_id))
+        return [json.loads(m) for m in members]
+    except Exception as e:
+        logger.error("Failed to get push subscriptions from Redis", user_id=user_id, error=str(e))
+        return []

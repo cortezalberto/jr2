@@ -40,6 +40,7 @@ from rest_api.models import (
     Subcategory,  # RTR-LOW-05 FIX: Moved from inline import
     Table,
     TableSession,
+    User,
     WaiterSectorAssignment,
 )
 from shared.security.auth import current_user_context, require_roles
@@ -71,6 +72,7 @@ from shared.infrastructure.events import (
     CHECK_PAID,
     TABLE_SESSION_STARTED,
     TABLE_CLEARED,
+    TABLE_TRANSFERRED,
 )
 from rest_api.services.payments.allocation import allocate_payment_fifo
 from rest_api.services.domain import RoundService, ServiceCallService, BillingService
@@ -735,6 +737,31 @@ async def submit_round_for_session(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Product {item.product_id} not available at this branch",
             )
+
+    # Stock validation: check ingredient availability for tracked products
+    from rest_api.services.domain.inventory_service import InventoryService
+    inventory_service = InventoryService(db)
+    unavailable_items: list[str] = []
+    for item in body.items:
+        product, _bp = product_lookup[item.product_id]
+        insufficient = inventory_service.check_stock_for_product(
+            branch_id=session.branch_id,
+            tenant_id=tenant_id,
+            product_id=item.product_id,
+            required_qty=item.qty,
+        )
+        if insufficient:
+            unavailable_items.append(
+                f"{product.name} (falta: {', '.join(insufficient)})"
+            )
+    if unavailable_items:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": "Stock insuficiente para uno o más productos",
+                "unavailable_items": unavailable_items,
+            },
+        )
 
     # Calculate next round number
     max_round = db.scalar(
@@ -1783,4 +1810,569 @@ def get_session_summary(
         paid_cents=check.paid_cents if check else 0,
         check_status=check.status if check else None,
         is_hybrid=is_hybrid,
+    )
+
+
+# =============================================================================
+# Void Round Item
+# =============================================================================
+
+
+class VoidRoundItemRequest(BaseModel):
+    """Request body for voiding a round item."""
+    reason: str
+
+
+class VoidRoundItemResponse(BaseModel):
+    """Response for voiding a round item."""
+    success: bool
+    item_id: int
+    round_id: int
+    is_voided: bool
+    void_reason: str
+    round_canceled: bool
+    message: str
+
+
+@router.patch("/rounds/items/{item_id}/void", response_model=VoidRoundItemResponse)
+async def void_round_item(
+    item_id: int,
+    body: VoidRoundItemRequest,
+    db: Session = Depends(get_db),
+    ctx: dict[str, Any] = Depends(current_user_context),
+) -> VoidRoundItemResponse:
+    """
+    Void a single item from a submitted round.
+
+    Allowed for rounds in SUBMITTED, IN_KITCHEN, or READY status.
+    If all items in the round become voided, the round is auto-canceled.
+
+    Requires WAITER, MANAGER, or ADMIN role.
+    """
+    require_roles(ctx, ["WAITER", "MANAGER", "ADMIN"])
+
+    user_id = int(ctx["sub"])
+    tenant_id = ctx.get("tenant_id")
+    branch_ids = ctx.get("branch_ids", [])
+
+    from rest_api.services.domain.round_service import (
+        RoundItemNotFoundError,
+        RoundItemNotVoidableError,
+    )
+
+    service = RoundService(db)
+
+    try:
+        item, round_obj, round_canceled = service.void_item(
+            tenant_id=tenant_id,
+            round_item_id=item_id,
+            reason=body.reason,
+            user_id=user_id,
+        )
+    except RoundItemNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Item {item_id} no encontrado",
+        )
+    except RoundItemNotVoidableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Verify branch access
+    if round_obj.branch_id not in branch_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a esta sucursal",
+        )
+
+    # Publish ROUND_ITEM_VOIDED event
+    session = round_obj.session
+    table = session.table if session else None
+    sector_id = table.sector_id if table else None
+
+    try:
+        redis = await get_redis_client()
+        from shared.infrastructure.events import publish_event, Event, ROUND_ITEM_VOIDED
+        from shared.infrastructure.events import channel_branch_admin, channel_branch_waiters, channel_branch_kitchen
+
+        event = Event(
+            type=ROUND_ITEM_VOIDED,
+            tenant_id=tenant_id,
+            branch_id=round_obj.branch_id,
+            table_id=table.id if table else 0,
+            session_id=round_obj.table_session_id,
+            entity={
+                "round_id": round_obj.id,
+                "item_id": item.id,
+                "product_id": item.product_id,
+                "product_name": item.product_name,
+                "void_reason": body.reason,
+                "round_canceled": round_canceled,
+                "round_status": round_obj.status,
+            },
+            actor={
+                "user_id": user_id,
+                "role": "STAFF",
+            },
+            sector_id=sector_id,
+        )
+        await publish_event(redis, channel_branch_admin(round_obj.branch_id), event)
+        await publish_event(redis, channel_branch_waiters(round_obj.branch_id), event)
+        await publish_event(redis, channel_branch_kitchen(round_obj.branch_id), event)
+
+        logger.info(
+            "ROUND_ITEM_VOIDED event published",
+            item_id=item.id,
+            round_id=round_obj.id,
+            round_canceled=round_canceled,
+        )
+    except Exception as e:
+        logger.error("Failed to publish ROUND_ITEM_VOIDED event", error=str(e))
+
+    message = (
+        "Ronda cancelada (todos los items anulados)"
+        if round_canceled
+        else "Item anulado correctamente"
+    )
+
+    return VoidRoundItemResponse(
+        success=True,
+        item_id=item.id,
+        round_id=round_obj.id,
+        is_voided=True,
+        void_reason=body.reason,
+        round_canceled=round_canceled,
+        message=message,
+    )
+
+
+# =============================================================================
+# Feature: Waiter Shift Handoff (reassign table to another waiter)
+# =============================================================================
+
+
+class TransferWaiterRequest(BaseModel):
+    """Request body for transferring a table's session to another waiter."""
+    target_waiter_id: int
+
+
+class TransferWaiterResponse(BaseModel):
+    """Response for waiter shift handoff."""
+    success: bool
+    table_id: int
+    table_code: str
+    session_id: int
+    previous_waiter_id: Optional[int]
+    new_waiter_id: int
+    message: str
+
+
+@router.post("/tables/{table_id}/transfer", response_model=TransferWaiterResponse)
+async def transfer_table_waiter(
+    table_id: int,
+    body: TransferWaiterRequest,
+    db: Session = Depends(get_db),
+    ctx: dict[str, Any] = Depends(current_user_context),
+) -> TransferWaiterResponse:
+    """
+    Transfer a table's active session to another waiter (shift handoff).
+
+    Reassigns the session's assigned_waiter_id to the target waiter.
+    Requires MANAGER or ADMIN role.
+    Publishes TABLE_TRANSFERRED event to both old and new waiters.
+    """
+    require_roles(ctx, ["MANAGER", "ADMIN"])
+
+    user_id = int(ctx["sub"])
+    tenant_id = ctx.get("tenant_id")
+    branch_ids = ctx.get("branch_ids", [])
+
+    # Find the table
+    table = db.scalar(
+        select(Table).where(
+            Table.id == table_id,
+            Table.tenant_id == tenant_id,
+            Table.is_active.is_(True),
+        )
+    )
+    if not table:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mesa {table_id} no encontrada",
+        )
+
+    if table.branch_id not in branch_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a esta sucursal",
+        )
+
+    # Find active session
+    session = db.scalar(
+        select(TableSession).where(
+            TableSession.table_id == table_id,
+            TableSession.status.in_(["OPEN", "PAYING"]),
+        )
+    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Mesa {table_id} no tiene una sesión activa para transferir",
+        )
+
+    # Validate target waiter exists and belongs to same tenant
+    target_waiter = db.scalar(
+        select(User).where(
+            User.id == body.target_waiter_id,
+            User.tenant_id == tenant_id,
+            User.is_active.is_(True),
+        )
+    )
+    if not target_waiter:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mozo destino {body.target_waiter_id} no encontrado",
+        )
+
+    # Reassign the session
+    previous_waiter_id = session.assigned_waiter_id
+    session.assigned_waiter_id = body.target_waiter_id
+
+    safe_commit(db)
+    db.refresh(session)
+
+    # Publish TABLE_TRANSFERRED event
+    try:
+        redis = await get_redis_client()
+        await publish_table_event(
+            redis_client=redis,
+            event_type=TABLE_TRANSFERRED,
+            tenant_id=tenant_id,
+            branch_id=table.branch_id,
+            table_id=table.id,
+            session_id=session.id,
+            table_code=table.code,
+            table_status=table.status,
+            actor_user_id=user_id,
+            actor_role="MANAGER",
+            sector_id=table.sector_id,
+        )
+        logger.info(
+            "Table waiter transferred",
+            table_id=table_id,
+            session_id=session.id,
+            previous_waiter_id=previous_waiter_id,
+            new_waiter_id=body.target_waiter_id,
+            approved_by=user_id,
+        )
+    except Exception as e:
+        logger.error("Failed to publish TABLE_TRANSFERRED event", error=str(e))
+
+    return TransferWaiterResponse(
+        success=True,
+        table_id=table.id,
+        table_code=table.code,
+        session_id=session.id,
+        previous_waiter_id=previous_waiter_id,
+        new_waiter_id=body.target_waiter_id,
+        message=f"Mesa {table.code} transferida al mozo #{body.target_waiter_id}",
+    )
+
+
+# =============================================================================
+# Feature: Ad-hoc Discounts (waiter-accessible, manager/admin approval)
+# =============================================================================
+
+
+class ApplyDiscountRequest(BaseModel):
+    """Request body for applying a discount to a session's check."""
+    discount_type: str  # "PERCENT" or "AMOUNT"
+    value: int  # Percentage (1-100) or amount in cents
+    reason: str
+
+
+class ApplyDiscountResponse(BaseModel):
+    """Response for discount application."""
+    success: bool
+    session_id: int
+    check_id: int
+    discount_type: str
+    discount_value: int
+    discount_amount_cents: int
+    old_total_cents: int
+    new_total_cents: int
+    message: str
+
+
+@router.post("/sessions/{session_id}/discount", response_model=ApplyDiscountResponse)
+def apply_session_discount(
+    session_id: int,
+    body: ApplyDiscountRequest,
+    db: Session = Depends(get_db),
+    ctx: dict[str, Any] = Depends(current_user_context),
+) -> ApplyDiscountResponse:
+    """
+    Apply an ad-hoc discount to a session's check.
+
+    Requires MANAGER or ADMIN role.
+    Records the discount as a ManagerOverride for full audit trail.
+    """
+    require_roles(ctx, ["MANAGER", "ADMIN"])
+
+    user_id = int(ctx["sub"])
+    user_email = ctx.get("email", "")
+    tenant_id = ctx.get("tenant_id")
+    branch_ids = ctx.get("branch_ids", [])
+
+    # Find the session
+    session = db.scalar(
+        select(TableSession).where(
+            TableSession.id == session_id,
+            TableSession.tenant_id == tenant_id,
+            TableSession.status.in_(["OPEN", "PAYING"]),
+        )
+    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Sesión activa {session_id} no encontrada",
+        )
+
+    if session.branch_id not in branch_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a esta sucursal",
+        )
+
+    # Find the check for this session
+    check = db.scalar(
+        select(Check).where(
+            Check.table_session_id == session_id,
+            Check.tenant_id == tenant_id,
+            Check.is_active.is_(True),
+        )
+    )
+    if not check:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontró cuenta para la sesión {session_id}",
+        )
+
+    # Delegate to OverrideService (reuses existing discount logic + audit trail)
+    from rest_api.services.domain.override_service import OverrideService
+    service = OverrideService(db)
+
+    try:
+        result = service.apply_discount(
+            tenant_id=tenant_id,
+            branch_id=session.branch_id,
+            check_id=check.id,
+            discount_type=body.discount_type,
+            discount_value=body.value,
+            reason=body.reason,
+            manager_user_id=user_id,
+            manager_email=user_email,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+    # Refresh check to get updated values
+    db.refresh(check)
+
+    import json
+    new_values = json.loads(result.get("new_values", "{}"))
+    old_values = json.loads(result.get("old_values", "{}"))
+
+    return ApplyDiscountResponse(
+        success=True,
+        session_id=session_id,
+        check_id=check.id,
+        discount_type=body.discount_type,
+        discount_value=body.value,
+        discount_amount_cents=result.get("amount_cents", 0),
+        old_total_cents=old_values.get("total_cents", 0),
+        new_total_cents=check.total_cents,
+        message=f"Descuento aplicado: {body.reason}",
+    )
+
+
+# =============================================================================
+# Feature: Table Transfer (move customers to another table)
+# =============================================================================
+
+
+class MoveTableResponse(BaseModel):
+    """Response for moving customers from one table to another."""
+    success: bool
+    source_table_id: int
+    source_table_code: str
+    target_table_id: int
+    target_table_code: str
+    session_id: int
+    message: str
+
+
+@router.post("/tables/{table_id}/move-to/{target_table_id}", response_model=MoveTableResponse)
+async def move_table_session(
+    table_id: int,
+    target_table_id: int,
+    db: Session = Depends(get_db),
+    ctx: dict[str, Any] = Depends(current_user_context),
+) -> MoveTableResponse:
+    """
+    Move customers from one table to another.
+
+    Transfers the active session to the target table.
+    Source table becomes FREE, target table takes the source's status.
+
+    Requires WAITER, MANAGER, or ADMIN role.
+    Validates: source has active session, target is FREE.
+    """
+    require_roles(ctx, ["WAITER", "MANAGER", "ADMIN"])
+
+    user_id = int(ctx["sub"])
+    tenant_id = ctx.get("tenant_id")
+    branch_ids = ctx.get("branch_ids", [])
+
+    if table_id == target_table_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La mesa origen y destino no pueden ser la misma",
+        )
+
+    # Find source table
+    source_table = db.scalar(
+        select(Table).where(
+            Table.id == table_id,
+            Table.tenant_id == tenant_id,
+            Table.is_active.is_(True),
+        )
+    )
+    if not source_table:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mesa origen {table_id} no encontrada",
+        )
+
+    if source_table.branch_id not in branch_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a esta sucursal",
+        )
+
+    # Find target table (must be in the same branch)
+    target_table = db.scalar(
+        select(Table).where(
+            Table.id == target_table_id,
+            Table.tenant_id == tenant_id,
+            Table.branch_id == source_table.branch_id,
+            Table.is_active.is_(True),
+        )
+    )
+    if not target_table:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Mesa destino {target_table_id} no encontrada en la misma sucursal",
+        )
+
+    # Validate target table is FREE
+    if target_table.status != "FREE":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Mesa destino {target_table.code} no está libre (estado: {target_table.status})",
+        )
+
+    # Find active session on source table
+    session = db.scalar(
+        select(TableSession).where(
+            TableSession.table_id == table_id,
+            TableSession.status.in_(["OPEN", "PAYING"]),
+        )
+    )
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Mesa {source_table.code} no tiene una sesión activa para mover",
+        )
+
+    # Check target doesn't have a lingering session (defensive)
+    existing_target_session = db.scalar(
+        select(TableSession).where(
+            TableSession.table_id == target_table_id,
+            TableSession.status.in_(["OPEN", "PAYING"]),
+        )
+    )
+    if existing_target_session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Mesa destino {target_table.code} ya tiene una sesión activa",
+        )
+
+    # Transfer session to target table
+    source_status = source_table.status
+    session.table_id = target_table_id
+
+    # Update table statuses
+    source_table.status = "FREE"
+    target_table.status = source_status
+
+    safe_commit(db)
+    db.refresh(session)
+    db.refresh(source_table)
+    db.refresh(target_table)
+
+    # Publish TABLE_TRANSFERRED events for both tables
+    try:
+        redis = await get_redis_client()
+        # Notify about the source table becoming free
+        await publish_table_event(
+            redis_client=redis,
+            event_type=TABLE_TRANSFERRED,
+            tenant_id=tenant_id,
+            branch_id=source_table.branch_id,
+            table_id=source_table.id,
+            session_id=session.id,
+            table_code=source_table.code,
+            table_status=source_table.status,
+            actor_user_id=user_id,
+            actor_role="WAITER",
+            sector_id=source_table.sector_id,
+        )
+        # Notify about the target table being occupied
+        await publish_table_event(
+            redis_client=redis,
+            event_type=TABLE_TRANSFERRED,
+            tenant_id=tenant_id,
+            branch_id=target_table.branch_id,
+            table_id=target_table.id,
+            session_id=session.id,
+            table_code=target_table.code,
+            table_status=target_table.status,
+            actor_user_id=user_id,
+            actor_role="WAITER",
+            sector_id=target_table.sector_id,
+        )
+        logger.info(
+            "Table session moved",
+            source_table_id=table_id,
+            target_table_id=target_table_id,
+            session_id=session.id,
+            moved_by=user_id,
+        )
+    except Exception as e:
+        logger.error("Failed to publish TABLE_TRANSFERRED events", error=str(e))
+
+    return MoveTableResponse(
+        success=True,
+        source_table_id=source_table.id,
+        source_table_code=source_table.code,
+        target_table_id=target_table.id,
+        target_table_code=target_table.code,
+        session_id=session.id,
+        message=f"Clientes movidos de mesa {source_table.code} a {target_table.code}",
     )

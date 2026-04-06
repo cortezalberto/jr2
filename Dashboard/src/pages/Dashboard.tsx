@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { MapPin, Phone, ArrowRight, Building2 } from 'lucide-react'
 import { PageContainer } from '../components/layout/PageContainer'
 import { Card } from '../components/ui/Card'
@@ -35,6 +36,7 @@ const BranchCard = memo(function BranchCard({
   onSelect,
   isFirst = false,
 }: BranchCardProps) {
+  const { t } = useTranslation()
   return (
     <Card
       className="group cursor-pointer hover:border-[var(--primary-500)]/50 transition-all"
@@ -58,7 +60,7 @@ const BranchCard = memo(function BranchCard({
         )}
         {branch.is_active === false && (
           <div className="absolute top-2 right-2">
-            <Badge variant="danger">Inactiva</Badge>
+            <Badge variant="danger">{t('common.inactive')}</Badge>
           </div>
         )}
       </div>
@@ -88,11 +90,11 @@ const BranchCard = memo(function BranchCard({
         <div className="flex gap-4 pt-2 border-t border-[var(--border-default)]">
           <div className="text-sm">
             <span className="text-[var(--text-primary)] font-medium">{categoryCount}</span>
-            <span className="text-[var(--text-muted)] ml-1">categorias</span>
+            <span className="text-[var(--text-muted)] ml-1">{t('sidebar.categories').toLowerCase()}</span>
           </div>
           <div className="text-sm">
             <span className="text-[var(--text-primary)] font-medium">{productCount}</span>
-            <span className="text-[var(--text-muted)] ml-1">productos</span>
+            <span className="text-[var(--text-muted)] ml-1">{t('sidebar.products').toLowerCase()}</span>
           </div>
         </div>
 
@@ -102,7 +104,7 @@ const BranchCard = memo(function BranchCard({
           className="w-full mt-2 group-hover:bg-[var(--primary-500)]/10 group-hover:text-[var(--primary-500)]"
           onClick={onSelect}
         >
-          Ver Sucursal
+          {t('pages.dashboard.viewBranch')}
           <ArrowRight className="w-4 h-4 ml-2" aria-hidden="true" />
         </Button>
       </div>
@@ -111,8 +113,9 @@ const BranchCard = memo(function BranchCard({
 })
 
 export function DashboardPage() {
+  const { t } = useTranslation()
   // REACT 19: Document metadata
-  useDocumentTitle('Dashboard')
+  useDocumentTitle(t('pages.dashboard.title'))
 
   const navigate = useNavigate()
   const restaurant = useRestaurantStore(selectRestaurant)
@@ -158,8 +161,8 @@ export function DashboardPage() {
       <meta name="description" content="Panel de administración de sucursales y menú del restaurante" />
 
       <PageContainer
-        title={`Bienvenido${restaurant ? `, ${restaurant.name}` : ''}`}
-        description="Selecciona una sucursal para administrar su menu"
+        title={`${t('pages.dashboard.welcome')}${restaurant ? `, ${restaurant.name}` : ''}`}
+        description={t('pages.dashboard.selectBranch')}
         helpContent={helpContent.dashboard}
       >
         {/* Branch Cards Grid */}
@@ -189,12 +192,12 @@ export function DashboardPage() {
               aria-hidden="true"
             />
             <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
-              No hay sucursales
+              {t('pages.dashboard.noBranches')}
             </h3>
             <p className="text-[var(--text-muted)] mb-4">
-              Crea tu primera sucursal para comenzar a administrar el menu
+              {t('pages.dashboard.createFirstBranch')}
             </p>
-            <Button onClick={() => navigate('/branches')}>Ir a Sucursales</Button>
+            <Button onClick={() => navigate('/branches')}>{t('pages.dashboard.goToBranches')}</Button>
           </Card>
         )}
       </PageContainer>
