@@ -216,6 +216,48 @@ Editor completo de productos con las siguientes capacidades:
 - Pagina Dashboard: `FloorPlan.tsx`.
 - Migracion: 011.
 
+### 1.29 Manager Overrides — COMPLETA
+
+- Void de item individual con razon obligatoria.
+- Descuentos ad-hoc tipo PERCENT o AMOUNT.
+- Audit trail persistido en tabla `ManagerOverride`.
+
+### 1.30 Kitchen Audio Alerts — COMPLETA
+
+- Beep con Web Audio API al recibir `ROUND_SUBMITTED`.
+- Flash visual naranja en KDS.
+- Toggle ON/OFF persistido en localStorage.
+
+### 1.31 KDS Advanced Features — COMPLETA
+
+- Timer por item en estado `IN_KITCHEN`.
+- Animacion `pulse-urgent` cuando supera 20 minutos.
+- Color coding: azul <10min, naranja 10-20min, rojo >20min.
+
+### 1.32 Audit Log Page — COMPLETA
+
+- Tabla con filtros por `entity_type` y `action`.
+- Expansion de filas para ver JSON de old/new values.
+- Paginacion estandar.
+
+### 1.33 QR Code por Mesa — COMPLETA
+
+- Boton QR en la pagina de Tables.
+- Modal con imagen QR + URL + opcion de copiar al portapapeles.
+- URL formato: `{domain}/join/{branch_slug}/{table_code}`.
+
+### 1.34 2FA para Admin — COMPLETA
+
+- TOTP via `pyotp` en el flujo de login.
+- Setup con codigo QR desde Settings.
+- Verificacion con `valid_window=1` (tolerancia de 30s de skew).
+
+### 1.35 Idle Timeout — COMPLETA
+
+- Warning a los 25 minutos de inactividad.
+- Auto-logout a los 30 minutos.
+- Excluye la ruta `/kitchen` (pantalla siempre activa).
+
 ---
 
 ## 2. pwaMenu (PWA del Cliente - Puerto 5176)
@@ -361,6 +403,22 @@ Sistema en 4 fases:
 - Feedback visual: spinner durante llamada, checkmark al confirmar.
 - Trackeo en `serviceCallStore`.
 
+### 2.21 Wait Time Display — FUNCIONAL
+
+- Muestra tiempo estimado de espera en la pantalla `OrderSuccess` tras enviar pedido.
+- Consume `GET /kitchen/estimated-wait`.
+
+### 2.22 Customer Feedback — FUNCIONAL
+
+- Modal de 5 estrellas con comentario opcional.
+- Se muestra automaticamente cuando la sesion pasa a `PAYING` o `CLOSED`.
+- Se permite un solo feedback por sesion.
+
+### 2.23 Re-order from History — FUNCIONAL
+
+- Boton "Repetir pedido" en `OrderHistory`.
+- Copia los items de un pedido previo al carrito actual.
+
 ---
 
 ## 3. pwaWaiter (PWA del Mozo - Puerto 5178)
@@ -467,6 +525,30 @@ Modal de dos pasos para que el mozo tome pedidos de clientes sin celular:
 - Toggle en barra de header.
 - Persiste en localStorage.
 - Variables CSS `[data-theme="light"]`.
+
+### 3.14 Shift Handoff — COMPLETA
+
+- `POST /waiter/tables/{id}/transfer` para transferir una mesa a otro mozo.
+- Requiere rol `MANAGER` o `ADMIN`.
+- Publica evento `TABLE_TRANSFERRED`.
+
+### 3.15 Table Transfer — COMPLETA
+
+- `POST /waiter/tables/{id}/move-to/{target}` para mover comensales a otra mesa.
+- Valida: la mesa origen tiene sesion activa, la mesa destino esta `FREE`.
+
+### 3.16 Ad-hoc Discounts — COMPLETA
+
+- `POST /waiter/sessions/{id}/discount` para aplicar descuentos.
+- Tipos: `PERCENT` o `AMOUNT`.
+- Usa `OverrideService` centralizado para audit trail.
+
+### 3.17 Single Item Void — COMPLETA
+
+- `PATCH /waiter/rounds/items/{item_id}/void` para anular un item individual.
+- Requiere `WAITER`, `MANAGER` o `ADMIN`.
+- Requiere razon no vacia.
+- Publica evento `ROUND_ITEM_VOIDED`.
 
 ---
 
@@ -596,7 +678,48 @@ API REST construida con FastAPI, PostgreSQL y Redis. Implementa Clean Architectu
 - CRUD completo de opciones de personalizacion + gestion masiva de links por producto.
 - Migracion: 012.
 
-### 4.20 Cache Redis de Menu Publico — FUNCIONAL
+### 4.20a Receipt Printing Service — COMPLETA
+
+- `ReceiptService` genera HTML para kitchen ticket, customer receipt y daily report.
+- Formato 80mm termico monospace apto para impresoras POS.
+- Endpoints bajo `/admin/receipts/*`.
+
+### 4.20b GDPR Compliance — COMPLETA
+
+- `GET /admin/data-export/customer/{id}` exporta un JSON completo con todos los datos del cliente.
+- `DELETE /admin/data-export/customer/{id}` anonimiza PII (nombre, email, phone, device_id).
+- Cumple con la ley argentina de proteccion de datos personales.
+
+### 4.20c Stock Validation on Round Submit — COMPLETA
+
+- `round_service.submit_round()` valida el inventario antes de crear los items.
+- Responde HTTP 409 con la lista de productos sin stock suficiente.
+- Usa `recipe_ingredients` para calcular la cantidad requerida.
+
+### 4.20d Wait Time Estimator — FUNCIONAL
+
+- `GET /kitchen/estimated-wait?branch_id=`.
+- Calcula el promedio de los ultimos 20 pedidos completados.
+- Retorna 10 minutos por defecto si no hay datos suficientes.
+
+### 4.20e Email Service (SMTP) — FUNCIONAL
+
+- Servicio opcional, no-op si no esta configurado.
+- Confirmacion automatica de reservas.
+- Ejecucion en background thread para no bloquear el request.
+
+### 4.20f Per-Waiter Analytics — FUNCIONAL
+
+- `GET /reports/waiter-performance`.
+- Metricas: mesas servidas, rondas procesadas, revenue, propinas, tiempo de servicio, service calls atendidas.
+
+### 4.20g Comprehensive Audit Log — COMPLETA
+
+- `AuditService` centralizado para todos los dominios.
+- Cobertura: billing, rounds, staff, tips, inventory.
+- Pagina Dashboard `/audit-log` para consulta y filtrado.
+
+### 4.21 Cache Redis de Menu Publico — FUNCIONAL
 
 - Menu publico cacheado en Redis por branch slug con TTL de 5 minutos.
 - Auto-invalidacion al modificar productos, categorias o subcategorias de la sucursal.

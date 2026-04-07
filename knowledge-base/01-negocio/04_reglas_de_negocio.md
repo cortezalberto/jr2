@@ -775,6 +775,71 @@ El proyecto usa gobernanza con Policy Tickets que definen niveles de autonomia p
 
 ---
 
+## 22. Reglas de Void de Item de Ronda
+
+- Estados voidables: `SUBMITTED`, `IN_KITCHEN`, `READY`.
+- No voidables: `SERVED` ni items ya anulados.
+- Requiere razon (no vacia).
+- Registra `void_reason`, `voided_by_user_id`, `voided_at`.
+- Si se anulan TODOS los items de una ronda, la ronda se cancela automaticamente.
+- Publica evento `ROUND_ITEM_VOIDED`.
+
+---
+
+## 23. Reglas de Manager Override
+
+- Tipos de override: `ITEM_VOID`, `DISCOUNT`, `PAYMENT_REVERSAL`, `ROUND_CANCEL`.
+- Descuentos: `PERCENT` (1-100) o `AMOUNT` (centavos, maximo igual al total del check).
+- Requiere rol `MANAGER` o `ADMIN`.
+- Registra snapshots JSON de old/new values para auditoria.
+
+---
+
+## 24. Reglas de Validacion de Stock
+
+- El submit de ronda valida stock contra el inventario.
+- Usa `recipe_ingredients` para calcular la cantidad necesaria.
+- Si el producto no tiene receta o no tiene stock trackeado, se omite la validacion.
+- Retorna HTTP 409 con la lista de items sin stock suficiente.
+
+---
+
+## 25. Reglas de 2FA
+
+- El secret TOTP se almacena como `"pending:{secret}"` hasta que sea verificado.
+- `valid_window=1` (30s de tolerancia de skew).
+- El login requiere codigo si `totp_secret` existe y no empieza con `"pending:"`.
+- Deshabilitar 2FA requiere un codigo TOTP valido vigente.
+
+---
+
+## 26. Reglas de Idle Timeout
+
+- Warning a los 25 minutos de inactividad.
+- Auto-logout a los 30 minutos.
+- Eventos de actividad: `mousemove`, `keydown`, `click`, `scroll`, `touchstart`.
+- Deshabilitado en la ruta `/kitchen`.
+
+---
+
+## 27. Reglas de Feedback de Cliente
+
+- Rating 1-5 obligatorio.
+- Comentario opcional.
+- Un solo feedback por sesion (HTTP 409 en duplicado).
+- La sesion debe estar en estado `PAYING` o `CLOSED`.
+
+---
+
+## 28. Reglas del Email Service
+
+- No-op si SMTP no esta configurado (loguea warning, retorna `False`).
+- Nunca lanza excepciones.
+- Ejecuta en background thread (no bloqueante).
+- Usado para confirmaciones de reservas.
+
+---
+
 ## Tabla de Referencia Rapida de Maquinas de Estado
 
 | Entidad | Estados | Estado final | Cancelable? |

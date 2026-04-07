@@ -9,8 +9,8 @@ Documentacion completa de la cadena de migraciones de base de datos del sistema 
 ## Estado Actual
 
 ```
-Migraciones totales: 12
-Ultima migracion: 012_customizations
+Migraciones totales: 14
+Ultima migracion: 014_create_manager_override_table
 Directorio: backend/alembic/versions/
 ```
 
@@ -55,8 +55,16 @@ Directorio: backend/alembic/versions/
 011_floor_plan (down_revision: 010_crm)
          │
          ▼
-012_customizations (down_revision: 011_floor_plan)  ← HEAD actual
+012_customizations (down_revision: 011_floor_plan)
+         │
+         ▼
+013_add_void_fields_to_round_item (down_revision: 012_customizations)
+         │
+         ▼
+014_create_manager_override_table (down_revision: 013_add_void_fields_to_round_item)  ← HEAD actual
 ```
+
+Cadena resumida: `None → 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012 → 013 → 014` (14 migraciones total).
 
 ---
 
@@ -299,6 +307,48 @@ Directorio: backend/alembic/versions/
 - **Riesgo**: Ninguno. Tablas nuevas.
 - **Rollback**: Drop de las 2 tablas en orden inverso de dependencias
 
+### 013_add_void_fields_to_round_item
+
+- **Archivo**: `backend/alembic/versions/013_add_void_fields_to_round_item.py`
+- **Revision ID**: `013_add_void_fields_to_round_item`
+- **Down revision**: `012_customizations`
+- **Operacion**: `ALTER TABLE round_item` agregando 4 columnas para soporte de anulacion de items
+- **Proposito**: Permitir anular items individuales de una ronda con registro de auditoria (quien, cuando y por que) sin eliminar fisicamente el registro.
+- **Tabla afectada**: `round_item`
+- **Columnas nuevas**:
+  - `is_voided` (Boolean, default `false`, NOT NULL)
+  - `void_reason` (Text, nullable)
+  - `voided_by_user_id` (BigInteger, FK → app_user.id, nullable)
+  - `voided_at` (DateTime, nullable)
+- **Riesgo**: Ninguno. Default `false` no cambia el comportamiento existente.
+- **Rollback**: Drop de las 4 columnas en orden inverso
+
+### 014_create_manager_override_table
+
+- **Archivo**: `backend/alembic/versions/014_create_manager_override_table.py`
+- **Revision ID**: `014_create_manager_override_table`
+- **Down revision**: `013_add_void_fields_to_round_item`
+- **Operacion**: `CREATE TABLE manager_override`
+- **Proposito**: Registrar todas las operaciones que requieren aprobacion de un manager (anulacion de items, descuentos, reversion de pagos, cancelacion de rondas) con snapshots de valores antiguos y nuevos para auditoria completa.
+- **Tabla nueva**: `manager_override`
+- **Columnas**:
+  - `id` (BigInteger, PK, autoincrement)
+  - `tenant_id` (BigInteger, FK → app_tenant.id, NOT NULL)
+  - `branch_id` (BigInteger, FK → branch.id, NOT NULL)
+  - `override_type` (Text, NOT NULL — valores: `ITEM_VOID`, `DISCOUNT`, `PAYMENT_REVERSAL`, `ROUND_CANCEL`)
+  - `reason` (Text, NOT NULL)
+  - `approved_by` (BigInteger, FK → app_user.id, NOT NULL)
+  - `requested_by` (BigInteger, FK → app_user.id, NOT NULL)
+  - `entity_type` (Text, NOT NULL — ej: "round_item", "check", "payment")
+  - `entity_id` (BigInteger, NOT NULL)
+  - `old_values` (JSON, nullable — snapshot antes del cambio)
+  - `new_values` (JSON, nullable — snapshot despues del cambio)
+  - `amount_cents` (Integer, nullable — monto afectado si aplica)
+  - `status` (Text, NOT NULL)
+  - `is_active` (Boolean, default `true`, NOT NULL)
+- **Riesgo**: Ninguno. Tabla nueva.
+- **Rollback**: `DROP TABLE manager_override`
+
 ---
 
 ## Comandos de Operacion
@@ -383,8 +433,8 @@ cd backend && alembic revision --autogenerate -m "descripcion_del_cambio"
 |----------|---------|---------|
 | Revision ID | `NNN_nombre_corto` | `001_product_name` |
 | Archivo | `NNN_descripcion_larga.py` | `001_add_product_name_to_round_item.py` |
-| Numeracion | Secuencial, 3 digitos | 001, 002, ..., 011 |
-| Siguiente | `013_*` | (la proxima migracion) |
+| Numeracion | Secuencial, 3 digitos | 001, 002, ..., 014 |
+| Siguiente | `015_*` | (la proxima migracion) |
 
 ---
 
@@ -404,4 +454,6 @@ cd backend && alembic revision --autogenerate -m "descripcion_del_cambio"
 | 010 | 4 tablas de CRM | CREATE |
 | 011 | 2 tablas de floor plan | CREATE |
 | 012 | 2 tablas de customizations | CREATE |
-| **Total** | **32 tablas nuevas + 2 ALTER** | |
+| 013 | `round_item` | ALTER (add 4 columns) |
+| 014 | `manager_override` (1 tabla) | CREATE |
+| **Total** | **33 tablas nuevas + 3 ALTER** | |

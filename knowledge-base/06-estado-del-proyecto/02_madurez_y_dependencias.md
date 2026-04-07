@@ -44,6 +44,9 @@ Analisis integral del estado de madurez de cada feature, detalle de las que aun 
 |---------|:------:|:---:|:--------:|:-----:|:----:|:----:|---------|
 | QR / Unirse a Mesa | SI | SI | SI | SI | SI | SI | **COMPLETA** |
 | Carrito Compartido | SI | SI | SI | SI | SI | SI | **COMPLETA** |
+| Customer Feedback | SI | SI | SI | NO | NO | PARCIAL | **FUNCIONAL** |
+| Re-order from History | SI | SI | SI | NO | NO | PARCIAL | **FUNCIONAL** |
+| Call Waiter from Product Detail | - | SI | SI | NO | NO | PARCIAL | **FUNCIONAL** |
 | Confirmacion Grupal | SI | SI | SI | SI | SI | SI | **COMPLETA** |
 | Round Submission (comensal) | SI | SI | SI | SI | SI | SI | **COMPLETA** |
 | Round Confirmation (mozo) | SI | SI | SI | SI | SI | - | **COMPLETA** |
@@ -67,15 +70,32 @@ Analisis integral del estado de madurez de cada feature, detalle de las que aun 
 | Feature | Modelo | API | Frontend | Tests | Docs | i18n | Madurez |
 |---------|:------:|:---:|:--------:|:-----:|:----:|:----:|---------|
 | Kitchen Display | SI | SI | SI | NO | NO | NO | **FUNCIONAL** |
+| Advanced KDS (timer per-item + pulse) | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Kitchen Audio Alerts (Web Audio API) | - | - | SI | SI | SI | - | **COMPLETA** |
 | Estadisticas / Reportes | SI | SI | SI | NO | NO | NO | **FUNCIONAL** |
+| Per-Waiter Analytics | SI | SI | SI | NO | NO | NO | **FUNCIONAL** |
+| Wait Time Estimator | SI | SI | SI | NO | NO | NO | **FUNCIONAL** |
 | Disponibilidad de Producto | SI | SI | NO | NO | NO | NO | **PARCIAL** |
+| Receipt Printing (kitchen + customer + daily) | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Stock Validation on Round Submit | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Item Void (migration 013) | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Manager Overrides (model + service + audit + UI) | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Waiter Shift Handoff | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Table Transfer (move customers) | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Ad-hoc Discounts | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Comprehensive Audit Log (AuditService + page) | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| QR Codes per Table | SI | SI | SI | SI | SI | - | **COMPLETA** |
 
 ### Infraestructura
 
 | Feature | Modelo | API | Frontend | Tests | Docs | i18n | Madurez |
 |---------|:------:|:---:|:--------:|:-----:|:----:|:----:|---------|
 | CI/CD (GitHub Actions) | - | - | - | SI | NO | - | **FUNCIONAL** |
-| Alembic Migrations (001-011) | SI | - | - | NO | NO | - | **FUNCIONAL** |
+| Alembic Migrations (001-014) | SI | - | - | NO | NO | - | **FUNCIONAL** |
+| 2FA TOTP for Admin | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Idle Timeout (25/30 min) | - | SI | SI | SI | SI | - | **COMPLETA** |
+| GDPR Data Export / Anonymize | SI | SI | SI | SI | SI | - | **COMPLETA** |
+| Email Service (SMTP no-op fallback) | - | SI | - | NO | NO | - | **FUNCIONAL** |
 | Backup / Restore | - | SI | - | NO | NO | - | **FUNCIONAL** |
 | Horizontal Scaling (WS Gateway) | - | SI | - | NO | SI | - | **FUNCIONAL** |
 | E2E Tests (Playwright) | - | - | - | PARCIAL | NO | - | **SCAFFOLD** |
@@ -120,12 +140,38 @@ Analisis integral del estado de madurez de cada feature, detalle de las que aun 
 
 | Madurez | Cantidad | Porcentaje |
 |---------|:--------:|:----------:|
-| **COMPLETA** | 29 | 52% |
-| **FUNCIONAL** | 15 | 27% |
-| **PARCIAL** | 3 | 5% |
-| **SCAFFOLD** | 5 | 9% |
-| **PLANIFICADA** | 1 | 2% |
-| **Total** | **54** | **100%** |
+| **COMPLETA** | 44 | 59% |
+| **FUNCIONAL** | 21 | 28% |
+| **PARCIAL** | 3 | 4% |
+| **SCAFFOLD** | 5 | 7% |
+| **PLANIFICADA** | 1 | 1% |
+| **Total** | **75** | **100%** |
+
+### Newly Completed (recent additions)
+
+- Manager Overrides (model + service + endpoints + audit + UI)
+- Item Void (migration 013 + service + Kitchen UI)
+- Receipt Printing (kitchen ticket + customer receipt + daily report)
+- GDPR Data Export (export + anonymize)
+- Kitchen Audio Alerts (Web Audio API beep + visual flash)
+- Comprehensive Audit Log (AuditService + Dashboard page)
+- Waiter Shift Handoff
+- Table Transfer (move customers between tables)
+- Ad-hoc Discounts
+- 2FA TOTP for Admin
+- Idle Timeout (25 min warning / 30 min logout)
+- Advanced KDS (per-item timer + pulse animation)
+- Stock Validation on Round Submit
+- QR Codes per Table
+
+### Newly Functional
+
+- Email Service (SMTP with no-op fallback)
+- Per-Waiter Analytics
+- Wait Time Estimator
+- Customer Feedback
+- Re-order from History
+- Call Waiter from Product Detail
 
 ---
 
@@ -182,7 +228,7 @@ Analisis integral del estado de madurez de cada feature, detalle de las que aun 
 
 #### 8. Alembic Migrations
 
-- **Que existe**: 11 migraciones encadenadas (001 → 011), configuracion funcional.
+- **Que existe**: 14 migraciones encadenadas (001 → 014), configuracion funcional.
 - **Que falta**: Migracion "initial schema" (schema base creado por `create_all()` antes de Alembic), tests de migracion (upgrade + downgrade).
 - **Esfuerzo estimado**: 1-2 dias
 - **Bloqueado por**: Nada (generar initial migration retroactivamente es delicado)
@@ -190,8 +236,8 @@ Analisis integral del estado de madurez de cada feature, detalle de las que aun 
 #### 9-14. Modulos de Negocio (Inventory, Cash Register, Tips, Scheduling, CRM, Floor Plan)
 
 - **Que existe**: Modelos + APIs + paginas en Dashboard.
-- **Que falta en todos**: Tests, documentacion, i18n.
-- **Esfuerzo estimado**: 2-3 dias por modulo para tests basicos.
+- **Que falta en todos**: Documentacion, i18n. (Tests: RESUELTO — cobertura basica agregada.)
+- **Esfuerzo estimado**: 1-2 dias por modulo para docs + i18n.
 - **Bloqueado por**: Nada
 
 ### PARCIAL (no end-to-end)
@@ -361,7 +407,7 @@ PostgreSQL
   └─ si se rompe: TODO el sistema cae (sin fallback)
 
 Alembic Migrations
-  ├─ cadena: 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011
+  ├─ cadena: 001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009 → 010 → 011 → 012 → 013 → 014
   └─ si se rompe: Schema desincronizado — requiere intervencion manual
 ```
 

@@ -55,6 +55,9 @@ Este documento detalla todos los endpoints disponibles en la REST API (puerto 80
 | POST | `/api/auth/refresh` | Cookie | Renovar access token | Cookie `refresh_token` (automático) |
 | POST | `/api/auth/logout` | JWT | Cerrar sesión e invalidar tokens | - |
 | GET | `/api/auth/me` | JWT | Obtener info del usuario actual | - |
+| POST | `/api/auth/2fa/setup` | JWT | Generar secreto TOTP y QR para configurar 2FA | - |
+| POST | `/api/auth/2fa/verify` | JWT | Verificar codigo TOTP y activar 2FA en la cuenta | `{"code": "123456"}` |
+| DELETE | `/api/auth/2fa/disable` | JWT | Desactivar 2FA (requiere confirmacion) | `{"code": "123456"}` |
 
 **Respuesta de login:**
 ```json
@@ -119,6 +122,7 @@ Autenticación vía `X-Table-Token`.
 | PUT | `/api/diner/cart/{item_id}` | X-Table-Token | Actualizar item del carrito | `{"quantity": ..., "notes": "..."}` |
 | DELETE | `/api/diner/cart/{item_id}` | X-Table-Token | Eliminar item del carrito | - |
 | POST | `/api/diner/service-call` | X-Table-Token | Llamar al mozo | `{"type": "waiter_call"}` |
+| POST | `/api/diner/feedback` | X-Table-Token | Enviar feedback del cliente (1-5 estrellas) con comentario opcional | `{"rating": 5, "comment": "..."}` |
 
 ---
 
@@ -150,6 +154,7 @@ Autenticación JWT con rol KITCHEN requerido.
 | PUT | `/api/kitchen/rounds/{id}/status` | JWT (KITCHEN) | Actualizar estado de ronda |
 | GET | `/api/kitchen/tickets` | JWT (KITCHEN) | Tickets de cocina activos |
 | PUT | `/api/kitchen/tickets/{id}/status` | JWT (KITCHEN) | Actualizar estado de ticket |
+| GET | `/api/kitchen/estimated-wait` | JWT (KITCHEN) | Estimador de tiempo de espera segun carga actual de cocina |
 
 **Importante:** La cocina NO ve pedidos en estado PENDING ni CONFIRMED. Solo los pedidos con estado SUBMITTED o superior aparecen en la vista de cocina.
 
@@ -219,6 +224,10 @@ Autenticación JWT con rol WAITER requerido.
 | GET | `/api/waiter/service-calls` | JWT (WAITER) | Llamadas de servicio pendientes |
 | PUT | `/api/waiter/service-calls/{id}/ack` | JWT (WAITER) | Acusar recibo de llamada |
 | PUT | `/api/waiter/service-calls/{id}/close` | JWT (WAITER) | Cerrar llamada de servicio |
+| POST | `/api/waiter/tables/{id}/transfer` | JWT (WAITER) | Transferir mesa a otro mozo (shift handoff) |
+| POST | `/api/waiter/tables/{id}/move-to/{target}` | JWT (WAITER) | Mover sesion a otra mesa (table transfer) |
+| POST | `/api/waiter/sessions/{id}/discount` | JWT (WAITER) | Aplicar descuento ad-hoc a la sesion |
+| PATCH | `/api/waiter/rounds/items/{item_id}/void` | JWT (WAITER) | Anular un item individual de una ronda (requiere motivo) |
 
 **Flujo pre-login del mozo:**
 1. `GET /api/public/branches` → seleccionar sucursal (SIN autenticación)
@@ -300,6 +309,39 @@ Todos los endpoints admin siguen el mismo patrón:
   }
 }
 ```
+
+### Data Export y GDPR
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| GET | `/api/admin/data-export/customer/{id}` | JWT (ADMIN) | Exportar datos del cliente en formato JSON (GDPR data portability) |
+| DELETE | `/api/admin/data-export/customer/{id}` | JWT (ADMIN) | Anonimizar PII del cliente (GDPR right to be forgotten) |
+| GET | `/api/admin/data-export/audit-log` | JWT (ADMIN) | Exportar entradas del audit log con filtros |
+
+### Manager Overrides
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| GET | `/api/admin/overrides` | JWT (ADMIN/MANAGER) | Listar overrides con filtros (tipo, fecha, usuario) |
+| POST | `/api/admin/overrides/void-item` | JWT (ADMIN/MANAGER) | Anular un item de ronda con motivo y auditoria |
+| POST | `/api/admin/overrides/discount` | JWT (ADMIN/MANAGER) | Aplicar descuento con aprobacion de manager |
+
+Todas las operaciones generan una entrada en la tabla `manager_override` con snapshots `old_values`/`new_values` para auditoria completa.
+
+### Recibos y Reportes
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| GET | `/api/admin/receipts/kitchen-ticket/{round_id}` | JWT (ADMIN/MANAGER/KITCHEN) | HTML imprimible del ticket de cocina de una ronda |
+| GET | `/api/admin/receipts/customer-receipt/{check_id}` | JWT (ADMIN/MANAGER/WAITER) | HTML imprimible del recibo del cliente |
+| GET | `/api/admin/receipts/daily-report/{branch_id}` | JWT (ADMIN/MANAGER) | Reporte de cierre diario por sucursal (HTML) |
+| GET | `/api/admin/reports/waiter-performance` | JWT (ADMIN/MANAGER) | Analiticas de performance por mozo (ventas, tiempos, propinas) |
+
+### Mesas - QR Code
+
+| Método | Endpoint | Auth | Descripción |
+|--------|----------|------|-------------|
+| GET | `/api/admin/tables/{table_id}/qr-url` | JWT (ADMIN/MANAGER) | Genera la URL del QR code de la mesa para impresion |
 
 ### Tabla RBAC Completa
 
